@@ -25,7 +25,7 @@ Key highlights of π-MSNet:
 4. **Data Export:** PSMs and metadata exported to QPX Parquet format, optimized for rapid access, reduced storage (96% smaller than CSV), and efficient downstream AI workflows.
 5. **Model Benchmarking:** Existing deep learning models were retrained and benchmarked on the π-MSNet dataset to demonstrate performance improvements.
 
-![π-MSNet Workflow](https://msnet.ncpsb.org.cn/static/workflow.png)  
+![π-MSNet Workflow](assets/Figure2_Latest.png)  
 *Figure 1: π-MSNet processing workflow.*
 
 ## Retention Time Prediction Example
