@@ -28,11 +28,32 @@ Key highlights of π-MSNet:
 ![π-MSNet Workflow](assets/Figure2_Latest.png)  
 *Figure 1: π-MSNet processing workflow.*
 
-## Retention Time Prediction Example
+## MSNetLoader: Efficient Data Loading for π-MSNet
 
-- RT prediction captures peptide elution behavior in chromatography.
-- A subset of 933,526 peptides from three projects (IPX0000937001, IPX0001289001, IPX0001804001) was used for training and testing models such as GPTime, AutoRT, and DeepLC.
-- RT and peptide length distributions are available in Supplementary Note 3, Fig. 4.
+MSNetLoader is a Python utility designed to streamline access to π-MSNet datasets in QPX Parquet format. It enables efficient loading of PSMs and metadata, supports batch processing, and integrates seamlessly with machine learning workflows.
+
+**Key Features:**
+
+- Load PSMs and associated metadata from QPX Parquet files with minimal memory overhead.
+- Supports batched and shuffled data access for model training and evaluation.
+- Provides integration-ready PyTorch and TensorFlow dataset objects.
+
+**Example Usage:**
+
+```python
+from msnetloader import MSNetLoader
+
+# Initialize loader with local or remote QPX dataset path
+loader = MSNetLoader(qpx_path='path/to/qpx_dataset.parquet')
+
+# Load PSMs for Homo sapiens tryptic peptides
+psms, metadata = loader.load(batch_size=1024)
+
+# Iterate through batches for model training
+for batch_psms, batch_meta in loader:
+    # process batch
+    pass
+```
 
 ## Data Access
 
