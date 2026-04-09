@@ -191,14 +191,19 @@ def test_rt_dataframe_basic(rt_dataframe):
 
 
 def test_rt_required_columns(rt_dataframe):
-    """Check required columns exist."""
+    """Check required columns exist and are valid."""
     df = rt_dataframe
 
-    # 👉 根据 DeepLC 常见格式（你可以按实际改）
-    required_cols = ["sequence", "rt"]
+    required_cols = ["seq", "tr"]
 
     for col in required_cols:
-        assert col in df.columns
+        assert col in df.columns, f"Missing required column: {col}"
+
+    # Check sequence column is not empty
+    assert df["seq"].notnull().all(), "Sequence column contains null values"
+
+    # Check RT column is numeric
+    assert df["tr"].dtype.kind in {"f", "i"}, "RT column must be numeric"
 
 
 def test_rt_values_valid(rt_dataframe):
@@ -206,10 +211,10 @@ def test_rt_values_valid(rt_dataframe):
     df = rt_dataframe
 
     # RT 应该是非负数
-    assert (df["rt"] >= 0).all()
+    assert (df["tr"] >= 0).all()
 
     # RT 不应该全是0
-    assert df["rt"].sum() > 0
+    assert df["tr"].sum() > 0
 
 
 def test_sequence_valid(rt_dataframe):
