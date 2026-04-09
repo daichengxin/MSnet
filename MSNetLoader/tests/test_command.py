@@ -221,11 +221,11 @@ def test_sequence_valid(rt_dataframe):
     """Check peptide sequences are valid strings."""
     df = rt_dataframe
 
-    assert df["sequence"].notnull().all()
-    assert df["sequence"].apply(lambda x: isinstance(x, str)).all()
+    assert df["seq"].notnull().all()
+    assert df["seq"].apply(lambda x: isinstance(x, str)).all()
 
     # 长度 > 0
-    assert (df["sequence"].str.len() > 0).all()
+    assert (df["seq"].str.len() > 0).all()
 
 
 def test_no_duplicate_sequences(rt_dataframe):
@@ -233,4 +233,4 @@ def test_no_duplicate_sequences(rt_dataframe):
     df = rt_dataframe
 
     # 如果你允许重复可以删掉这条
-    assert df["sequence"].nunique() > 0
+    assert df["seq"].nunique() > 0
