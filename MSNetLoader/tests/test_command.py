@@ -101,7 +101,7 @@ def test_length_sampler_consistency(sample_data):
 def denovo_dataset():
     """Load a small denovo dataset for testing."""
     dataset = DeNovoDataset(
-        "tests/test_data/PXD012636_Danio_rerio-MSNet.parquet"
+        "tests/test_data/PXD014877-Akkermansia_muciniphilia-MSNet.parquet"
     )
     return dataset
 
@@ -170,7 +170,7 @@ def test_denovo_sequence_consistency(denovo_dataset):
 def rt_dataframe():
     """Load RT dataframe from parquet."""
     converter = DeepLCConverter(
-        "tests/test_data/PXD012636_Danio_rerio-MSNet.parquet"
+        "tests/test_data/PXD014877-Akkermansia_muciniphilia-MSNet.parquet"
     )
     df = converter.convert_parquet_to_rt_format()
     return df
