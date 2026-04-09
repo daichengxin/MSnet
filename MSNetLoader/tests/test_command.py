@@ -78,11 +78,13 @@ def test_dataset_and_dataloader(sample_data):
 
 
 def test_length_sampler_consistency(sample_data):
-    """Test sampler groups same-length sequences."""
+    """Test that the sampler groups sequences of the same length."""
     precursor_df, fragment_df = sample_data
 
     dataset = MS2TorchDataset(precursor_df, fragment_df)
-    lengths = dataset.dataset["nAA"]
+
+    # Convert to NumPy array for efficient indexing
+    lengths = dataset.dataset["nAA"].to_numpy()
 
     sampler = LengthExactSampler(
         lengths=lengths,
@@ -91,9 +93,13 @@ def test_length_sampler_consistency(sample_data):
     )
 
     for batch_indices in sampler:
-        batch_lengths = lengths.iloc[batch_indices]
+        # Ensure batch is not empty
+        assert len(batch_indices) > 0
 
-        # ✅ 每个 batch 长度应该一致
+        # Index lengths using NumPy (supports advanced indexing)
+        batch_lengths = lengths[batch_indices]
+
+        # All sequences in the batch should have the same length
         assert len(set(batch_lengths)) == 1
 
 
