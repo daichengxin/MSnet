@@ -1,16 +1,9 @@
 import torch
 from torch.utils.data import Dataset as TorchDataset
-from torch.utils.data import DataLoader
-import pandas as pd
 import pyarrow.parquet as pq
 import pyarrow as pa
 import numpy as np
-from datasets import Dataset
-import pyarrow.ipc as ipc
-from torch.utils.data import Sampler
-import math
-import random
-from datasets import Dataset as ArrowDataset
+from torch.utils.data import IterableDataset
 
 
 def denovo_collate_fn(batch):
@@ -86,52 +79,28 @@ class DeNovoDataset(TorchDataset):
 
         self.max_peaks = max_peaks
 
-        if data_path.endswith(".arrow"):
+        self.parquet = pq.ParquetFile(data_path)
+        self.backend = "parquet"
+        self.length = self.parquet.metadata.num_rows
 
-            reader = ipc.open_file(data_path)
-            self.table = reader.read_all()
-            self.backend = "arrow"
-            self.length = self.table.num_rows
-
-        elif data_path.endswith(".parquet"):
-
-            self.parquet = pq.ParquetFile(data_path)
-            self.backend = "parquet"
-            self.length = self.parquet.metadata.num_rows
-
-            # row group size
-            self.row_group_size = self.parquet.metadata.row_group(0).num_rows
-
-        else:
-            raise ValueError("Only support .arrow or .parquet")
+        # row group size
+        self.row_group_size = self.parquet.metadata.row_group(0).num_rows
 
     def __len__(self):
         return self.length
 
     def __getitem__(self, idx):
 
-        if self.backend == "arrow":
+        group = idx // self.row_group_size
+        offset = idx % self.row_group_size
 
-            row = self.table.slice(idx, 1)
+        table = self.parquet.read_row_group(group)
 
-            mz = row["mz"][0].as_py()
-            intensity = row["intensity"][0].as_py()
-            sequence = row["sequence"][0].as_py()
-            charge = row["precursor_charge"][0].as_py()
-            precursor_mz = row["precursor_mz"][0].as_py()
-
-        else:
-
-            group = idx // self.row_group_size
-            offset = idx % self.row_group_size
-
-            table = self.parquet.read_row_group(group)
-
-            mz = table["mz_array"][offset].as_py()
-            intensity = table["intensity_array"][offset].as_py()
-            sequence = table["sequence"][offset].as_py()
-            charge = table["precursor_charge"][offset].as_py()
-            precursor_mz = table["exp_mass_to_charge"][offset].as_py()
+        mz = table["mz_array"][offset].as_py()
+        intensity = table["intensity_array"][offset].as_py()
+        sequence = table["sequence"][offset].as_py()
+        charge = table["precursor_charge"][offset].as_py()
+        precursor_mz = table["exp_mass_to_charge"][offset].as_py()
 
         # numpy
         mz = np.asarray(mz)
@@ -165,37 +134,52 @@ class DeNovoDataset(TorchDataset):
         }
 
 
-class DeNovoArrowConverter:
+class DeNovoIterableDataset(IterableDataset):
 
-    def __init__(self, parquet_path, batch_size=100000):
-        self.parquet_path = parquet_path
+    def __init__(self, data_path, max_peaks=150, batch_size=100_000):
+        self.data_path = data_path
+        self.max_peaks = max_peaks
         self.batch_size = batch_size
 
-    def convert(self, output_path):
+    def __iter__(self):
+        self.parquet_file = pq.ParquetFile(self.data_path)
 
-        parquet_file = pq.ParquetFile(self.parquet_path)
-        schema = pa.schema([
-            ("sequence", pa.string()),
-            ("precursor_charge", pa.int32()),
-            ("precursor_mz", pa.float32()),
-            ("mz", pa.list_(pa.float32())),
-            ("intensity", pa.list_(pa.float32())),
-        ])
+        for batch in self.parquet_file.iter_batches(batch_size=self.batch_size):
 
-        with ipc.new_file(output_path, schema) as writer:
+            table = pa.Table.from_batches([batch])
 
-            for batch in parquet_file.iter_batches(batch_size=self.batch_size):
+            mz_array = table["mz_array"]
+            intensity_array = table["intensity_array"]
+            sequence_array = table["sequence"]
+            charge_array = table["precursor_charge"]
+            precursor_array = table["exp_mass_to_charge"]
 
-                table = pa.Table.from_batches([batch])
-                print(table)
-                new_table = pa.table({
-                    "sequence": table["sequence"],
-                    "precursor_charge": table["precursor_charge"],
-                    "precursor_mz": table["exp_mass_to_charge"],
-                    "mz": table["mz_array"],
-                    "intensity": table["intensity_array"],
-                }, schema=schema)
+            for i in range(table.num_rows):
 
-                writer.write_table(new_table)
+                mz = np.asarray(mz_array[i].as_py())
+                intensity = np.asarray(intensity_array[i].as_py())
 
-        print("Arrow file written to:", output_path)
+                sequence = sequence_array[i].as_py()
+                charge = charge_array[i].as_py()
+                precursor_mz = precursor_array[i].as_py()
+
+                # ------------------------
+                # top peaks
+                # ------------------------
+                if len(mz) > self.max_peaks:
+                    idxs = np.argsort(intensity)[-self.max_peaks:]
+                    mz = mz[idxs]
+                    intensity = intensity[idxs]
+
+                # normalize
+                if len(intensity) > 0 and intensity.max() > 0:
+                    intensity = intensity / intensity.max()
+
+                spectrum = np.stack([mz, intensity], axis=1)
+
+                yield {
+                    "spectrum": torch.tensor(spectrum, dtype=torch.float32),
+                    "sequence": sequence,
+                    "precursor_mz": torch.tensor(precursor_mz, dtype=torch.float32),
+                    "charge": torch.tensor(charge, dtype=torch.long),
+                }

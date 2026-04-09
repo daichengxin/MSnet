@@ -1,96 +1,120 @@
 import torch
 from torch.utils.data import Dataset as TorchDataset
-from torch.utils.data import DataLoader
 import pandas as pd
 import pyarrow.parquet as pq
 import pyarrow as pa
 import numpy as np
-from datasets import Dataset
-import pyarrow.ipc as ipc
-from torch.utils.data import Sampler
-import math
-import random
+from torch.utils.data import IterableDataset
 
 
 class RTTorchDataset(TorchDataset):
 
     def __init__(
         self,
-        csv_path,
-        feature_columns=None,
-        label_column="tr",
-        output_path="rt.arrow"
+        parquet_path,
+        label_column="retention_time",
     ):
-        df = pd.read_csv(csv_path)
+        table = pq.read_table(parquet_path)
 
-        # 计算长度
-        df["nAA"] = df["seq"].apply(len)
+        # ------------------------
+        # load columns
+        # ------------------------
+        seqs = table["sequence"].to_pylist()
+        mods = table["modifications"].to_pylist()
+        labels = np.array(table[label_column], dtype=np.float32)
 
-        # 物理排序（关键！提升 bucket 性能）
-        df = df.sort_values("nAA").reset_index(drop=True)
+        # ------------------------
+        # format modifications
+        # ------------------------
+        mods_fmt = []
+        for m, s in zip(mods, seqs):
+            if m:
+                mods_fmt.append(
+                    self.format_modifications_ms2pip_style(m, s)
+                )
+            else:
+                mods_fmt.append("")
 
-        self.lengths = df["nAA"].values
+        # ------------------------
+        # nAA + sort
+        # ------------------------
+        nAA = np.array([len(s) for s in seqs], dtype=np.int32)
+        order = np.argsort(nAA)
 
-        self.dataset = self.write_arrow_streaming(
-            df,
-            output_path=output_path
-        )
+        self.features = {
+            "sequence": [seqs[i] for i in order],
+            "modifications": [mods_fmt[i] for i in order]
+        }
 
-        self.feature_columns = feature_columns or [
-            "seq",
-            "modifications",
-            "nAA",
-        ]
-
-        self.label_column = label_column
+        self.labels = labels[order] / 60.0
 
     def __len__(self):
-        return len(self.dataset)
+        return len(self.labels)
 
     def __getitem__(self, idx):
 
-        sample = self.dataset[idx]
-
         features = {
-            k: sample[k] for k in self.feature_columns
+            "sequence": self.features["sequence"][idx],
+            "modifications": self.features["modifications"][idx]
         }
 
-        label = torch.tensor(
-            sample[self.label_column],
-            dtype=torch.float32
-        )
+        label = torch.tensor(self.labels[idx], dtype=torch.float32)
 
         return features, label
 
     @staticmethod
-    def write_arrow_streaming(df, output_path, batch_size=10000):
+    def format_modifications_ms2pip_style(mods_raw, seq):
 
-        schema = pa.schema([
-            ("seq", pa.string()),
-            ("modifications", pa.string()),
-            ("nAA", pa.int32()),
-            ("tr", pa.float32()),
-        ])
+        formatted = []
 
-        with open(output_path, "wb") as sink:
-            with ipc.new_stream(sink, schema) as writer:
+        for mod in mods_raw or []:
+            name = mod.get("name")
+            if not name:
+                continue
 
-                n = len(df)
+            for p in mod.get("positions", []):
+                pos = p.get("position")
+                if pos is not None:
+                    formatted.append(f"{pos}|{name}")
 
-                for start in range(0, n, batch_size):
-                    end = min(start + batch_size, n)
-                    batch_df = df.iloc[start:end]
+        return "|".join(formatted)
 
-                    batch = pa.record_batch({
-                        "seq": batch_df["seq"].tolist(),
-                        "modifications": batch_df["modifications"].fillna("").tolist(),
-                        "nAA": batch_df["nAA"].astype("int32").tolist(),
-                        "tr": batch_df["tr"].astype("float32").tolist(),
-                    }, schema=schema)
 
-                    writer.write_batch(batch)
+class RTIterableDataset(IterableDataset):
 
-        return Dataset.from_file(output_path)
+    def __init__(self, parquet_path, batch_size=100_000):
+        self.parquet_path = parquet_path
+        self.batch_size = batch_size
+
+    def __iter__(self):
+
+        parquet_file = pq.ParquetFile(self.parquet_path)
+
+        for batch in parquet_file.iter_batches(batch_size=self.batch_size):
+
+            table = pa.Table.from_batches([batch])
+
+            sequences = table["sequence"]
+            modifications = table["modifications"]
+            tr_array = table["retention_time"]
+
+            for i in range(table.num_rows):
+
+                seq = sequences[i].as_py()
+                tr = tr_array[i].as_py()
+
+                mods_raw = modifications[i].as_py()
+                mods_fmt = ""
+
+                if mods_raw:
+                    mods_fmt = RTTorchDataset.format_modifications_ms2pip_style(
+                        mods_raw, seq
+                    )
+
+                yield {
+                    "sequence": seq,
+                    "modifications": mods_fmt
+                }, torch.tensor(tr / 60.0, dtype=torch.float32)
 
 
 class DeepLCConverter:

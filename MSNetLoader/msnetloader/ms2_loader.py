@@ -3,9 +3,6 @@ from torch.utils.data import Dataset as TorchDataset
 import pandas as pd
 import pyarrow.parquet as pq
 import pyarrow as pa
-import numpy as np
-from datasets import Dataset
-import pyarrow.ipc as ipc
 from torch.utils.data import Sampler
 import math
 import random
@@ -14,7 +11,8 @@ import re
 
 class MS2TorchDataset(TorchDataset):
     def __init__(self, precursor_df, fragment_df, feature_columns=None, label_column="fragments"):
-        self.dataset = self.write_arrow_streaming(precursor_df, fragment_df, output_path="ms2.arrow")
+        self.precursor_df = precursor_df
+        self.fragment_df = fragment_df
         self.feature_columns = feature_columns or [
             "sequence",
             "charge",
@@ -27,62 +25,23 @@ class MS2TorchDataset(TorchDataset):
         self.label_column = label_column
 
     def __len__(self):
-        return len(self.dataset)
+        return len(self.precursor_df)
 
     def __getitem__(self, idx):
 
-        sample = self.dataset[idx]
+        row = self.precursor_df.iloc[idx]
 
-        features = {k: sample[k] for k in self.feature_columns}
+        features = {k: row[k] for k in self.feature_columns}
 
-        # fragments → tensor
-        label = torch.tensor(sample[self.label_column], dtype=torch.float32)
+        # slice fragment（关键）
+        start = row["frag_start_idx"]
+        stop = row["frag_stop_idx"]
+
+        fragments = self.fragment_df.iloc[start:stop].values
+
+        label = torch.tensor(fragments, dtype=torch.float32)
 
         return features, label
-
-    @staticmethod
-    def write_arrow_streaming(precursor_df, fragment_df, output_path, batch_size=32):
-        frag_array = fragment_df.values.astype("float32")
-
-        schema = pa.schema([
-            ("sequence", pa.string()),
-            ("charge", pa.int32()),
-            ("mods", pa.string()),
-            ("mod_sites", pa.string()),
-            ("nce", pa.float32()),
-            ("instrument", pa.string()),
-            ("nAA", pa.int32()),
-            ("fragments", pa.list_(
-                pa.list_(pa.float32(), list_size=4)
-            ))
-        ])
-
-        with ipc.new_stream(output_path, schema) as writer:
-            n = len(precursor_df)
-
-            for start in range(0, n, batch_size):
-                end = min(start + batch_size, n)
-
-                batch_df = precursor_df.iloc[start:end]
-
-                fragments = [
-                    frag_array[row.frag_start_idx:row.frag_stop_idx].tolist()
-                    for row in batch_df.itertuples(index=False)
-                ]
-
-                batch = pa.table({
-                    "sequence": batch_df["sequence"].tolist(),
-                    "charge": batch_df["charge"].astype("int32").tolist(),
-                    "mods": batch_df["mods"].tolist(),
-                    "mod_sites": batch_df["mod_sites"].tolist(),
-                    "nce": batch_df["nce"].astype("float32").tolist(),
-                    "nAA": batch_df["nAA"].astype("int32").tolist(),
-                    "instrument": batch_df["instrument"].tolist(),
-                    "fragments": fragments,
-                }, schema=schema)
-
-                writer.write(batch)
-        return Dataset.from_file("ms2.arrow")
 
 
 class LengthExactSampler(Sampler):
