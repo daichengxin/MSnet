@@ -172,6 +172,7 @@ def test_denovo_sequence_consistency(denovo_dataset):
         assert torch.all((mask == 0) | (mask == 1))
 
 
+@pytest.fixture(scope="module")
 def rt_dataframe():
     """Load RT dataframe from parquet."""
     converter = DeepLCConverter(
