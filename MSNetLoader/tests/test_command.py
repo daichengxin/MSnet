@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 import torch
 from torch.utils.data import DataLoader
+import numpy as np
 
 from msnetloader.ms2_loader import (
     AlphaPeptDeepConverter,
@@ -83,8 +84,8 @@ def test_length_sampler_consistency(sample_data):
 
     dataset = MS2TorchDataset(precursor_df, fragment_df)
 
-    # Convert to NumPy array for efficient indexing
-    lengths = dataset.dataset["nAA"].to_numpy()
+    # Convert to NumPy array (HF Dataset returns list)
+    lengths = np.array(dataset.dataset["nAA"])
 
     sampler = LengthExactSampler(
         lengths=lengths,
@@ -93,10 +94,8 @@ def test_length_sampler_consistency(sample_data):
     )
 
     for batch_indices in sampler:
-        # Ensure batch is not empty
         assert len(batch_indices) > 0
 
-        # Index lengths using NumPy (supports advanced indexing)
         batch_lengths = lengths[batch_indices]
 
         # All sequences in the batch should have the same length
