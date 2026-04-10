@@ -57,7 +57,7 @@ def test_dataset_and_dataloader(sample_data):
     )
 
     dataloader = DataLoader(
-        dataset.dataset,
+        dataset,
         batch_sampler=sampler,
         num_workers=0,
         pin_memory=False
