@@ -48,18 +48,18 @@ def test_dataset_and_dataloader(sample_data):
 
     dataset = MS2TorchDataset(precursor_df, fragment_df)
 
-    lengths = dataset.dataset["nAA"]
+    lengths = precursor_df["nAA"].values
 
     sampler = LengthExactSampler(
         lengths=lengths,
-        batch_size=8,   # 小 batch 更适合测试
-        shuffle=False   # ❗保证可复现
+        batch_size=32,
+        shuffle=True
     )
 
     dataloader = DataLoader(
         dataset.dataset,
         batch_sampler=sampler,
-        num_workers=0,   # ❗CI 里更安全
+        num_workers=0,
         pin_memory=False
     )
 
@@ -82,10 +82,7 @@ def test_length_sampler_consistency(sample_data):
     """Test that the sampler groups sequences of the same length."""
     precursor_df, fragment_df = sample_data
 
-    dataset = MS2TorchDataset(precursor_df, fragment_df)
-
-    # Convert to NumPy array (HF Dataset returns list)
-    lengths = np.array(dataset.dataset["nAA"])
+    lengths = precursor_df["nAA"].values
 
     sampler = LengthExactSampler(
         lengths=lengths,

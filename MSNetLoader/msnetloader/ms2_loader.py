@@ -33,7 +33,7 @@ class MS2TorchDataset(TorchDataset):
 
         features = {k: row[k] for k in self.feature_columns}
 
-        # slice fragment（关键）
+        # slice fragment
         start = row["frag_start_idx"]
         stop = row["frag_stop_idx"]
 
@@ -133,7 +133,6 @@ def format_modifications_custom(mods_raw, sequence):
             else:
                 continue
 
-            # 按你要求的格式
             mods_list.append(f"{name}@{site}")
             sites_list.append(str(position))
 
@@ -215,7 +214,7 @@ class AlphaPeptDeepConverter:
 
                 seq_len = len(seq)
 
-                # 构建映射: (ion_type, position, charge) -> intensity
+                # MAP: (ion_type, position, charge) -> intensity
                 frag_dict = {}
                 max_intensity = 0
                 for ion, frag_z, inten in zip(ions, frag_charges, intensities):
@@ -223,11 +222,11 @@ class AlphaPeptDeepConverter:
                     if ion is None:
                         continue
 
-                    # 忽略中性丢失
+                    # neu-loss
                     if "-" in ion:
                         continue
 
-                    # 只接受 b/y
+                    # b/y
                     ion_type = ion[0]
 
                     if ion_type not in ("b", "y"):
@@ -245,7 +244,6 @@ class AlphaPeptDeepConverter:
 
                 frag_start = global_frag_idx
 
-                # 对每个 cleavage 位点生成一行
                 # b ions: 1 → n-1
                 # y ions: 1 → n-1
                 for pos in range(1, seq_len):
@@ -275,7 +273,7 @@ class AlphaPeptDeepConverter:
                 )
 
         # ----------------------------
-        # 加列名
+        # build column
         # ----------------------------
 
         precursor_df = pd.DataFrame(
