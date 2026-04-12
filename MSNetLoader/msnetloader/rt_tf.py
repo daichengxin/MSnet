@@ -1,131 +1,83 @@
 import tensorflow as tf
-import pyarrow.parquet as pq
 import numpy as np
-from rt_loader import RTTorchDataset
-import pyarrow as pa
+import duckdb
 
 
-class RTDatasetTF:
+class RTTFDataset:
 
-    def __init__(self, parquet_path, label_column="retention_time"):
+    def __init__(
+        self,
+        parquet_path,
+        batch_size=100_000,
+        min_consensus_support=None,
+        max_pep=None
+    ):
+        con = duckdb.connect()
 
-        table = pq.read_table(parquet_path)
+        query = f"""
+            SELECT
+                peptidoform,
+                retention_time,
+                consensus_support,
+                posterior_error_probability
+            FROM parquet_scan('{parquet_path}')
+            ORDER BY length(sequence)
+        """
 
-        # ------------------------
-        # load columns
-        # ------------------------
-        seqs = table["sequence"].to_pylist()
-        mods = table["modifications"].to_pylist()
-        labels = np.array(table[label_column], dtype=np.float32)
+        self.arrow_table = con.execute(query).to_arrow_table()
 
-        # ------------------------
-        # format modifications
-        # ------------------------
-        mods_fmt = []
-        for m, s in zip(mods, seqs):
-            if m:
-                mods_fmt.append(
-                    self.format_modifications_ms2pip_style(m, s)
-                )
-            else:
-                mods_fmt.append("")
-
-        # ------------------------
-        # sort by length
-        # ------------------------
-        nAA = np.array([len(s) for s in seqs], dtype=np.int32)
-        order = np.argsort(nAA)
-
-        self.seqs = [seqs[i] for i in order]
-        self.mods = [mods_fmt[i] for i in order]
-        self.labels = labels[order] / 60.0
-
-    def to_tf_dataset(self, batch_size=32, shuffle=False):
-
-        ds = tf.data.Dataset.from_tensor_slices((
-            {
-                "sequence": self.seqs,
-                "modifications": self.mods
-            },
-            self.labels
-        ))
-
-        if shuffle:
-            ds = ds.shuffle(buffer_size=len(self.labels))
-
-        ds = ds.batch(batch_size).prefetch(tf.data.AUTOTUNE)
-
-        return ds
-
-    @staticmethod
-    def format_modifications_ms2pip_style(mods_raw, seq):
-
-        formatted = []
-
-        for mod in mods_raw or []:
-            name = mod.get("name")
-            if not name:
-                continue
-
-            for p in mod.get("positions", []):
-                pos = p.get("position")
-                if pos is not None:
-                    formatted.append(f"{pos}|{name}")
-
-        return "|".join(formatted)
-
-
-class RTIterableDatasetTF:
-
-    def __init__(self, parquet_path, batch_size=100_000):
-        self.parquet_path = parquet_path
         self.batch_size = batch_size
+        self.min_consensus_support = min_consensus_support
+        self.max_pep = max_pep
 
+    # =========================================================
+    # generator
+    # =========================================================
     def generator(self):
+        for batch in self.arrow_table.to_batches(max_chunksize=self.batch_size):
+            yield self.process_batch(batch)
 
-        parquet_file = pq.ParquetFile(self.parquet_path)
+    # =========================================================
+    def get_dataset(self):
+        output_signature = {
+            "peptide": tf.TensorSpec(shape=(None,), dtype=tf.string),
+            "rt": tf.TensorSpec(shape=(None,), dtype=tf.float32),
+        }
 
-        for batch in parquet_file.iter_batches(batch_size=self.batch_size):
-
-            table = pa.Table.from_batches([batch])
-
-            sequences = table["sequence"]
-            modifications = table["modifications"]
-            tr_array = table["retention_time"]
-
-            for i in range(table.num_rows):
-
-                seq = sequences[i].as_py()
-                tr = tr_array[i].as_py()
-
-                mods_raw = modifications[i].as_py()
-                mods_fmt = ""
-
-                if mods_raw:
-                    mods_fmt = RTTorchDataset.format_modifications_ms2pip_style(
-                        mods_raw, seq
-                    )
-
-                yield {
-                    "sequence": seq,
-                    "modifications": mods_fmt
-                }, np.float32(tr / 60.0)
-
-    def to_tf_dataset(self, batch_size=32):
-
-        output_signature = (
-            {
-                "sequence": tf.TensorSpec(shape=(), dtype=tf.string),
-                "modifications": tf.TensorSpec(shape=(), dtype=tf.string),
-            },
-            tf.TensorSpec(shape=(), dtype=tf.float32),
-        )
-
-        ds = tf.data.Dataset.from_generator(
+        return tf.data.Dataset.from_generator(
             self.generator,
             output_signature=output_signature
         )
 
-        ds = ds.batch(batch_size).prefetch(tf.data.AUTOTUNE)
+    # =========================================================
+    def process_batch(self, batch):
+        peptidoform = batch["peptidoform"].to_pylist()
+        retention_time = batch["retention_time"].to_pylist()
+        consensus_support = batch["consensus_support"].to_pylist()
+        pep = batch["posterior_error_probability"].to_pylist()
 
-        return ds
+        # ✅ 转 numpy
+        peptidoform = np.array(peptidoform, dtype=np.string_)
+        retention_time = np.array(retention_time, dtype=np.float32)
+        consensus_support = np.array(consensus_support)
+        pep = np.array(pep)
+
+        # =====================================================
+        # ✅ 应用 filter（重点）
+        # =====================================================
+        mask = np.ones(len(peptidoform), dtype=bool)
+
+        if self.min_consensus_support is not None:
+            mask &= (consensus_support >= self.min_consensus_support)
+
+        if self.max_pep is not None:
+            mask &= (pep <= self.max_pep)
+
+        peptidoform = peptidoform[mask]
+        retention_time = retention_time[mask]
+
+        # =====================================================
+        return {
+            "peptide": peptidoform,
+            "rt": retention_time / 60.0  # 秒 → 分钟
+        }

@@ -1,304 +1,234 @@
 import torch
-from torch.utils.data import Dataset as TorchDataset
-import pandas as pd
-import pyarrow.parquet as pq
-import pyarrow as pa
-from torch.utils.data import Sampler
-import math
-import random
+import numpy as np
+from torch.utils.data import IterableDataset
+import duckdb
 import re
 
 
-class MS2TorchDataset(TorchDataset):
-    def __init__(self, precursor_df, fragment_df, feature_columns=None, label_column="fragments"):
-        self.precursor_df = precursor_df
-        self.fragment_df = fragment_df
-        self.feature_columns = feature_columns or [
-            "sequence",
-            "charge",
-            "mods",
-            "mod_sites",
-            "nce",
-            "nAA",
-            "instrument",
+class MS2TorchDataset(IterableDataset):
+
+    def __init__(self, parquet_path, batch_size=8, ion_types=("b", "y"), charges=(1, 2),
+                 min_consensus_support=None,
+                 max_pep=None
+                 ):
+
+        con = duckdb.connect()
+
+        query = f"""
+            SELECT
+                sequence,
+                peptidoform,
+                precursor_charge AS charge,
+                cv_params.Instrument AS instrument,
+                CAST(cv_params."Collision Energy" AS DOUBLE) AS nce,
+                ion_type_array,
+                charge_array,
+                intensity_array
+            FROM parquet_scan('{parquet_path}')
+            ORDER BY length(sequence)
+        """
+
+        self.arrow_table = con.execute(query).to_arrow_table()
+        self.batch_size = batch_size
+        self.min_consensus_support = min_consensus_support
+        self.max_pep = max_pep
+
+        self.ion_types = set(ion_types)
+        self.charges = set(charges)
+
+        self.channel_map = {
+            ("b", 1): 0,
+            ("b", 2): 1,
+            ("y", 1): 2,
+            ("y", 2): 3,
+        }
+
+        self.active_channels = [
+            self.channel_map[(t, z)]
+            for t in ion_types
+            for z in charges
+            if (t, z) in self.channel_map
         ]
-        self.label_column = label_column
 
-    def __len__(self):
-        return len(self.precursor_df)
-
-    def __getitem__(self, idx):
-
-        row = self.precursor_df.iloc[idx]
-
-        features = {k: row[k] for k in self.feature_columns}
-
-        # slice fragment
-        start = row["frag_start_idx"]
-        stop = row["frag_stop_idx"]
-
-        fragments = self.fragment_df.iloc[start:stop].values
-
-        label = torch.tensor(fragments, dtype=torch.float32)
-
-        return features, label
-
-
-class LengthExactSampler(Sampler):
-
-    def __init__(self, lengths, batch_size, shuffle=True):
-        self.batch_size = batch_size
-        self.shuffle = shuffle
-
-        self.groups = {}
-
-        for idx, l in enumerate(lengths):
-            if l not in self.groups:
-                self.groups[l] = []
-            self.groups[l].append(idx)
-
+    # -----------------------------
     def __iter__(self):
+        for batch in self.arrow_table.to_batches(max_chunksize=self.batch_size):
+            yield self.process_batch(batch)
 
-        batches = []
+    # -----------------------------
+    def process_batch(self, batch):
 
-        for length_value, indices in self.groups.items():
+        sequences = batch["sequence"].to_pylist()
+        peptidoform = batch["peptidoform"].to_pylist()
+        charges = batch["charge"].to_pylist()
+        nces = batch["nce"].to_pylist()
+        instruments = batch["instrument"].to_pylist()
 
-            if self.shuffle:
-                random.shuffle(indices)
+        fragments = batch["ion_type_array"].to_pylist()
+        fragment_charges = batch["charge_array"].to_pylist()
+        intensities = batch["intensity_array"].to_pylist()
 
-            for i in range(0, len(indices), self.batch_size):
-                batch = indices[i:i+self.batch_size]
-
-                if len(batch) > 0:
-                    batches.append(batch)
-
-        if self.shuffle:
-            random.shuffle(batches)
-
-        for batch in batches:
-            yield batch
-
-    def __len__(self):
-        return sum(
-            math.ceil(len(indices)/self.batch_size)
-            for indices in self.groups.values()
+        targets = self.build_batch_fragments(
+            sequences,
+            fragments,
+            fragment_charges,
+            intensities
         )
 
+        charge_tensor = torch.tensor(charges, dtype=torch.long)
+        nce_tensor = torch.tensor(nces, dtype=torch.float32)
 
-def parse_nce_fast(nce_raw):
-    if nce_raw is None:
-        return None
-    try:
-        return float(nce_raw)
-    except:
-        m = re.search(r"\d+\.?\d*", str(nce_raw))
-        return float(m.group()) if m else None
+        return {
+            "peptide": peptidoform,
+            "charge": charge_tensor,
+            "nce": nce_tensor,
+            "instruments": instruments,
+            "targets": targets
+        }
 
+    # -----------------------------
+    def build_batch_fragments(
+        self,
+        sequences,
+        fragments_list,
+        frag_charges_list,
+        intensity_list
+    ):
 
-def format_modifications_custom(mods_raw, sequence):
+        B = len(sequences)
+        Lmax = max(len(s) for s in sequences)
 
-    if not mods_raw:
-        return "", ""
+        out = np.zeros((B, Lmax - 1, 4), dtype=np.float32)
 
-    seq_len = len(sequence)
+        # -----------------------------
+        for b in range(B):
 
-    mods_list = []
-    sites_list = []
+            ions = fragments_list[b]
+            charges = frag_charges_list[b]
+            ints = intensity_list[b]
 
-    for mod in mods_raw:
-
-        if not mod or "name" not in mod:
-            continue
-
-        name = mod["name"].split(" ")[0]
-
-        if "positions" not in mod or not mod["positions"]:
-            continue
-
-        for pos_info in mod["positions"]:
-
-            if not pos_info or "position" not in pos_info:
+            if len(ions) == 0:
                 continue
 
-            position = int(pos_info["position"])
-            # N-term
-            if position == 0:
-                site = "Protein_N-term"
-            # C-term
-            elif position == seq_len + 1:
-                site = "Protein_C-term"
-            # AA
-            elif 1 <= position <= seq_len:
-                site = sequence[position - 1]
-            else:
+            ions = np.asarray(ions)
+            charges = np.asarray(charges)
+            ints = np.asarray(ints, dtype=np.float32)
+
+            valid = (ions != None)
+            ions = ions[valid]
+            charges = charges[valid]
+            ints = ints[valid]
+
+            if len(ions) == 0:
                 continue
 
-            mods_list.append(f"{name}@{site}")
-            sites_list.append(str(position))
+            # remove neutral loss
+            mask = np.char.find(ions.astype(str), "-") == -1
+            ions = ions[mask]
+            charges = charges[mask]
+            ints = ints[mask]
 
-    return ";".join(mods_list), ";".join(sites_list)
+            if len(ions) == 0:
+                continue
+
+            # -----------------------------
+            # parse ion string safely
+            # -----------------------------
+            ion_str = ions.astype(str)
+
+            ion_type = np.array([x[0] for x in ion_str])
+
+            # SAFE regex position parsing
+            pos = np.array([
+                int(re.findall(r"\d+", x)[0]) if re.findall(r"\d+", x) else -1
+                for x in ion_str
+            ])
+
+            seq_len = len(sequences[b])
+
+            valid = (pos >= 1) & (pos < seq_len)
+
+            ion_type = ion_type[valid]
+            pos = pos[valid] - 1
+            charges = charges[valid]
+            ints = ints[valid]
+
+            if len(pos) == 0:
+                continue
+
+            # -----------------------------
+            # channel mapping (fixed)
+            # -----------------------------
+            ch = np.full(len(ion_type), -1, dtype=np.int32)
+
+            for (t, z), c in self.channel_map.items():
+                if t in self.ion_types and z in self.charges:
+                    ch[(ion_type == t) & (charges == z)] = c
+
+            valid_ch = ch >= 0
+
+            pos = pos[valid_ch]
+            ch = ch[valid_ch]
+            ints = ints[valid_ch]
+
+            if len(pos) == 0:
+                continue
+
+            # -----------------------------
+            # intensity normalize
+            # -----------------------------
+            max_int = ints.max() if len(ints) > 0 else 1.0
+            ints = ints / max_int
+
+            # -----------------------------
+            # scatter
+            # -----------------------------
+            out[b, pos, ch] += ints
+
+        # -----------------------------
+        return torch.from_numpy(out[:, :, self.active_channels])
+
+    # =========================================================
+    # Optional FILTER 1
+    # =========================================================
+    def filter_by_consensus_support(self, support):
+        """
+        Keep spectrum if consensus_support >= threshold
+        """
+        if self.min_consensus_support is None:
+            return True
+
+        if support is None:
+            return False
+
+        return support >= self.min_consensus_support
+
+    # =========================================================
+    # Optional FILTER 2
+    # =========================================================
+    def filter_by_pep(self, pep):
+        """
+        Keep spectrum if posterior_error_probability <= threshold
+        """
+        if self.max_pep is None:
+            return True
+
+        if pep is None:
+            return False
+
+        return pep <= self.max_pep
 
 
-class AlphaPeptDeepConverter:
-    def __init__(self, parquet_path, batch_size=100_000):
-        self.parquet_path = parquet_path
-        self.batch_size = batch_size
-
-    def convert_parquet_to_training_format(self):
-
-        parquet_file = pq.ParquetFile(self.parquet_path)
-
-        precursor_rows = []
-        fragment_rows = []
-
-        global_frag_idx = 0
-
-        for batch in parquet_file.iter_batches(batch_size=self.batch_size):
-
-            table = pa.Table.from_batches([batch])
-
-            sequences = table["sequence"]
-            charges = table["precursor_charge"]
-            modifications = table["modifications"]
-
-            ion_types = table["ion_type_array"]
-            charge_array = table["charge_array"]
-            intensity_array = table["intensity_array"]
-
-            cv_struct = table["cv_params"]
-
-            # 批量抽取 struct 字段（零拷贝）
-            instrument_array = pa.chunked_array(
-                [chunk.field("Instrument") for chunk in cv_struct.chunks]
-            )
-            nce_array = pa.chunked_array(
-                [chunk.field("Collision Energy") for chunk in cv_struct.chunks]
-            )
-
-            n_rows = table.num_rows
-
-            for i in range(n_rows):
-
-                seq = sequences[i].as_py()
-                z = charges[i].as_py()
-
-                # --------------------
-                # modifications
-                # --------------------
-                mods = ""
-                mod_sites = ""
-
-                mods_raw = modifications[i].as_py()
-
-                if mods_raw:
-
-                    mods, mod_sites = format_modifications_custom(mods_raw, seq)
-
-                # ----------------------------
-                # instrument + NCE
-                # ----------------------------
-                instrument_val = instrument_array[i]
-                instrument = instrument_val.as_py() if instrument_val else None
-
-                nce_val = nce_array[i]
-                nce = parse_nce_fast(nce_val.as_py()) if nce_val else None
-
-                # --------------------
-                # fragment
-                # --------------------
-                ions = ion_types[i].as_py()
-                frag_charges = charge_array[i].as_py()
-                intensities = intensity_array[i].as_py()
-
-                frag_start = global_frag_idx
-
-                seq_len = len(seq)
-
-                # MAP: (ion_type, position, charge) -> intensity
-                frag_dict = {}
-                max_intensity = 0
-                for ion, frag_z, inten in zip(ions, frag_charges, intensities):
-
-                    if ion is None:
-                        continue
-
-                    # neu-loss
-                    if "-" in ion:
-                        continue
-
-                    # b/y
-                    ion_type = ion[0]
-
-                    if ion_type not in ("b", "y"):
-                        continue
-
-                    # 提取数字
-                    try:
-                        position = int(ion[1:])
-                    except:
-                        continue
-
-                    if inten > max_intensity:
-                        max_intensity = inten
-                    frag_dict[(ion_type, position, frag_z)] = inten
-
-                frag_start = global_frag_idx
-
-                # b ions: 1 → n-1
-                # y ions: 1 → n-1
-                for pos in range(1, seq_len):
-                    b_z1 = frag_dict.get(("b", pos, 1), 0.0) / max_intensity
-                    b_z2 = frag_dict.get(("b", pos, 2), 0.0) / max_intensity
-                    y_z1 = frag_dict.get(("y", pos, 1), 0.0) / max_intensity
-                    y_z2 = frag_dict.get(("y", pos, 2), 0.0) / max_intensity
-
-                    fragment_rows.append((b_z1, b_z2, y_z1, y_z2))
-                    global_frag_idx += 1
-
-                frag_stop = global_frag_idx
-                # print(mods)
-                # print(mod_sites)
-                precursor_rows.append(
-                    (
-                        seq,
-                        z,
-                        mods,
-                        mod_sites,
-                        len(seq),
-                        frag_stop,
-                        frag_start,
-                        nce,
-                        instrument,
-                    )
-                )
-
-        # ----------------------------
-        # build column
-        # ----------------------------
-
-        precursor_df = pd.DataFrame(
-            precursor_rows,
-            columns=[
-                "sequence",
-                "charge",
-                "mods",
-                "mod_sites",
-                "nAA",
-                "frag_stop_idx",
-                "frag_start_idx",
-                "nce",
-                "instrument",
-            ],
-        )
-
-        fragment_df = pd.DataFrame(
-            fragment_rows,
-            columns=[
-                "b_z1",
-                "b_z2",
-                "y_z1",
-                "y_z2",
-            ],
-        )
-
-        return precursor_df, fragment_df
+if __name__ == "__main__":
+    dataset = MS2TorchDataset("D:/gitrepo/MSnet/MSNetLoader/tests/test_data\PXD014877-Akkermansia_muciniphilia-MSNet.parquet",
+                              ion_types=("b, y"))
+    from torch.utils.data import DataLoader
+    dataloader = DataLoader(
+        dataset,
+        batch_size=None,
+        num_workers=0,
+        pin_memory=False
+    )
+    for batch in dataloader:
+        print(batch)
+        break
