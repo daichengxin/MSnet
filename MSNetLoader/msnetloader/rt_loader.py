@@ -1,5 +1,6 @@
 from torch.utils.data import IterableDataset
 import duckdb
+import numpy as np
 
 
 class RTIterableDataset(IterableDataset):
@@ -32,10 +33,11 @@ class RTIterableDataset(IterableDataset):
     def process_batch(self, batch):
         peptidoform = batch["peptidoform"].to_pylist()
         retention_time = batch["retention_time"].to_pylist()
+        rt = np.array(retention_time, dtype=np.float32) / 60.0
 
         return {
             "peptide": peptidoform,
-            "rt": retention_time / 60.0
+            "rt": rt
         }
 
     # =========================================================
