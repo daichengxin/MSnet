@@ -1,7 +1,8 @@
 # π-MSNet: A large-scale, AI-ready, continuously reprocessed proteomics data portal
 
+[![PyPI](https://img.shields.io/pypi/v/msnetloader)](https://pypi.org/project/msnetloader/)
+[![Python versions](https://img.shields.io/pypi/pyversions/msnetloader)](https://pypi.org/project/msnetloader/)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
 [![Data: Zenodo](https://img.shields.io/badge/data-Zenodo-blue)](https://zenodo.org/records/20792504)
 
 ![π-MSNet Logo](assets/Figure1.png)
@@ -49,14 +50,20 @@ MSNetLoader is a Python package designed to streamline access to π-MSNet datase
 
 ### Installation
 
-MSNetLoader requires Python ≥ 3.10:
+MSNetLoader requires Python ≥ 3.10 and is published on PyPI:
 
 ```bash
-git clone https://github.com/daichengxin/MSnet.git
+pip install msnetloader
+```
+
+To work on the source instead, clone the repository and install it in editable mode — or run `uv sync` inside `MSNetLoader/` to use the pinned `uv.lock`:
+
+```bash
+git clone https://github.com/PHOENIXcenter/pi-MSnet.git
 pip install -e MSNetLoader
 ```
 
-The package depends on `duckdb`, `pandas`, `numpy`, `pyarrow`, and `torch` / `tensorflow`, which are installed along with it. Inside `MSNetLoader/`, `uv sync` installs the same dependencies from the pinned `uv.lock` instead.
+The package depends on `duckdb`, `pandas`, `numpy`, `pyarrow`, and `torch` / `tensorflow`, which are installed along with it.
 
 ### Downloading datasets
 

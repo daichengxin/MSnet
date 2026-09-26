@@ -3,17 +3,18 @@ A Python API for seamless integration of π-MSNet into AI workflows
 
 ## Install
 
-Python ≥ 3.10 is required. From a clone of the repository:
+Python ≥ 3.10 is required.
 
 ```bash
-git clone https://github.com/daichengxin/MSnet.git
-pip install -e MSNetLoader
+pip install msnetloader
 ```
 
-Or directly from GitHub, without cloning:
+To work on the source instead, clone the repository and install it in editable
+mode — or run `uv sync` inside `MSNetLoader/` to use the pinned `uv.lock`:
 
 ```bash
-pip install "git+https://github.com/daichengxin/MSnet.git#subdirectory=MSNetLoader"
+git clone https://github.com/PHOENIXcenter/pi-MSnet.git
+pip install -e MSNetLoader
 ```
 
 See the [project README](../README.md) for the dataset itself, the portal and
