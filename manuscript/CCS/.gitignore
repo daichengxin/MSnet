@@ -1,0 +1,20 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Raw inputs, checkpoints, and full experiment outputs are intentionally local.
+ccs_scaling_runs/
+source_data/
+*.pt
+*.pth
+*.ckpt
+*.parquet
+*.log
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

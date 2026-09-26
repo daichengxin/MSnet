@@ -1,0 +1,12 @@
+{
+  "model": "pure power law",
+  "equation": "L(P) = coefficient * P^(-exponent)",
+  "fit_method": "np.polyfit(log10(x), log10(y), 1)",
+  "r_squared_space": "log10 loss",
+  "coefficient": 11.020424277512019,
+  "exponent": 0.014816936819067476,
+  "R2": 0.662774155140599,
+  "n_points": 5,
+  "x_min": 49164.0,
+  "x_max": 2453484.0
+}

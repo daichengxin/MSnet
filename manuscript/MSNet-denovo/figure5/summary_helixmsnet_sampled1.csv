@@ -1,0 +1,21 @@
+dataset,aa_precision,aa_recall,pep_recall
+Bacteroides thetaiotaomicron,0.786886,0.786578,0.611239
+Bacteroides uniformis,0.795695,0.795291,0.635905
+Bifidobacterium longum subsp. longum,0.730761,0.732336,0.499895
+Chromera velia,0.713719,0.718394,0.475053
+Danio rerio,0.726524,0.724794,0.532040
+Drosophila melanogaster,0.799267,0.798758,0.632831
+Fusarium oxysporum,0.641455,0.639908,0.379677
+Fusobacterium nucleatum subsp. nucleatum,0.846581,0.846475,0.695764
+Gallus gallus,0.797067,0.797318,0.637620
+Gossypium hirsutum,0.783740,0.783941,0.585545
+Haloarcula marismortui,0.000000,0.000000,0.000000
+Mus musculus,0.797742,0.797388,0.642123
+Mycoplasma pneumoniae,0.818180,0.816597,0.620858
+Neurospora crassa,0.756241,0.757079,0.567228
+Phaeodactylum tricornutum,0.796037,0.795527,0.604787
+Prevotella copri,0.805813,0.804949,0.629839
+Ruminococcus torques,0.848660,0.848918,0.689210
+Sulfolobus solfataricus,0.816911,0.817253,0.610070
+Triticum aestivum,0.760798,0.761534,0.578112
+Vitis vinifera,0.625996,0.627568,0.379804

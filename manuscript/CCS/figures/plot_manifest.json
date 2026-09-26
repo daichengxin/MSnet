@@ -1,0 +1,133 @@
+{
+  "artifact": "full_data_clean_final_scaling_law_figure",
+  "created_utc": "2026-09-26T06:46:56.590995+00:00",
+  "workflow": "plot-only; no training, dataset construction, or splitting",
+  "formal_experiment_root": "external; configure CCS_SCALING_ROOT for training",
+  "local_frozen_exports": {
+    "phase1_dataset_scaling": {
+      "path": "data\\dataset_scaling_aggregate.csv",
+      "sha256": "fd75f9ad1c17adc98400df65a6c5857bb1bc07ba9a9e60d9502dfc5953d49068"
+    },
+    "phase2_compute_scaling": {
+      "path": "data\\compute_scaling_aggregate.csv",
+      "sha256": "891a9e5a25d769b46604e5b70803f1604336a1549dfffc9dd923b49e19181a49"
+    },
+    "phase3_parameter_scaling": {
+      "path": "data\\parameter_scaling_aggregate.csv",
+      "sha256": "478a4a7959d9b0fee46feeb762fe728a0db94907daafc3addf4d2e598a6f995d"
+    }
+  },
+  "seed_ids": [
+    42,
+    123,
+    2026
+  ],
+  "panel_a": {
+    "N_curves": [
+      500,
+      2500,
+      10000,
+      50000,
+      100000,
+      280000,
+      465356
+    ],
+    "optimizer_step_checkpoints": [
+      10,
+      30,
+      50,
+      100,
+      300,
+      1000,
+      3000,
+      10000,
+      30000,
+      50000
+    ],
+    "parameter_count": 712428
+  },
+  "panel_b_fit": {
+    "model": "pure power law",
+    "equation": "L(N) = coefficient * N^(-exponent)",
+    "fit_method": "np.polyfit(log10(x), log10(y), 1)",
+    "r_squared_space": "log10 loss",
+    "coefficient": 26.064388190821074,
+    "exponent": 0.08029124958187564,
+    "R2": 0.9790301272408053,
+    "n_points": 12,
+    "x_min": 500.0,
+    "x_max": 465356.0
+  },
+  "panel_c": {
+    "displayed_hidden_dims": [
+      32,
+      64,
+      128,
+      256,
+      512
+    ],
+    "displayed_parameter_counts": [
+      49164,
+      94764,
+      235116,
+      712428,
+      2453484
+    ],
+    "excluded_from_main_display_but_retained": {
+      "hidden_dim": 1024,
+      "parameter_count": 9081324,
+      "interpretation": "The largest model did not provide additional performance gain under the current dataset/training regime."
+    },
+    "main5_fit": {
+      "model": "pure power law",
+      "equation": "L(P) = coefficient * P^(-exponent)",
+      "fit_method": "np.polyfit(log10(x), log10(y), 1)",
+      "r_squared_space": "log10 loss",
+      "coefficient": 11.020424277512019,
+      "exponent": 0.014816936819067476,
+      "R2": 0.662774155140599,
+      "n_points": 5,
+      "x_min": 49164.0,
+      "x_max": 2453484.0
+    }
+  },
+  "figures": [
+    "compute_scaling_final.png",
+    "compute_scaling_final.svg",
+    "dataset_scaling_final.png",
+    "dataset_scaling_final.svg",
+    "parameter_scaling_final.png",
+    "parameter_scaling_final.svg",
+    "three_panel_scaling_law_final.png",
+    "three_panel_scaling_law_final.svg"
+  ],
+  "plot_data_files": [
+    "plot_data_compute.csv",
+    "plot_data_dataset.csv",
+    "plot_data_parameter_main5.csv",
+    "plot_data_parameter_all6.csv",
+    "plot_fit_dataset.json",
+    "plot_fit_parameter_main5.json",
+    "plot_config.json"
+  ],
+  "qc": {
+    "status": "PASS",
+    "checks": {
+      "panel_a_has_7_curves": true,
+      "panel_a_each_curve_has_10_checkpoints": true,
+      "panel_a_all_rows_have_3_seeds": true,
+      "panel_a_no_legend_by_configuration": true,
+      "panel_b_has_12_points": true,
+      "panel_b_all_rows_have_3_seeds": true,
+      "panel_b_exponent_near_frozen_sanity_value": true,
+      "panel_c_main_has_5_points": true,
+      "panel_c_main_excludes_9081324": true,
+      "panel_c_all6_retains_6_points": true,
+      "panel_c_all6_retains_9081324": true,
+      "panel_c_fit_uses_5_points": true,
+      "all_means_and_errors_positive": true,
+      "all_png_and_svg_outputs_exist": true,
+      "no_training": true
+    }
+  }
+}
