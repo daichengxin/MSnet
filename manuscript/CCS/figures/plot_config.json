@@ -1,0 +1,81 @@
+{
+  "font_family": "DejaVu Sans",
+  "base_font_pt": 11,
+  "title_font_pt": 12,
+  "axis_label_font_pt": 12,
+  "tick_font_pt": 11,
+  "legend_font_pt": 10,
+  "single_figure_size_inches": [
+    6,
+    5
+  ],
+  "three_panel_figure_size_inches": [
+    18,
+    5.5
+  ],
+  "x_scale": "log",
+  "y_scale": "log",
+  "y_label": "Test MAE",
+  "grid": false,
+  "panel_a": {
+    "N_values": [
+      500,
+      2500,
+      10000,
+      50000,
+      100000,
+      280000,
+      465356
+    ],
+    "optimizer_steps": [
+      10,
+      30,
+      50,
+      100,
+      300,
+      1000,
+      3000,
+      10000,
+      30000,
+      50000
+    ],
+    "colormap": "Blues(np.linspace(0.35, 0.90, n))[::-1]",
+    "markers": [
+      "o",
+      "s",
+      "^",
+      "D",
+      "v",
+      "<",
+      ">"
+    ],
+    "legend": false,
+    "continuous_convergence_onset_fit": true
+  },
+  "panel_b": {
+    "displayed_points": 12,
+    "marker": "blue hollow circle"
+  },
+  "panel_c": {
+    "displayed_hidden_dims": [
+      32,
+      64,
+      128,
+      256,
+      512
+    ],
+    "excluded_from_display_hidden_dim": 1024,
+    "excluded_from_display_parameter_count": 9081324,
+    "marker": "blue filled circle"
+  },
+  "fit_line": {
+    "color": "#ff7f0e",
+    "linestyle": "--",
+    "linewidth": 1.8
+  },
+  "error_bars": {
+    "displayed": false
+  },
+  "fit_range": "[min(x)*0.5, max(x)*2] with 100 log-spaced points",
+  "png_dpi": 300
+}

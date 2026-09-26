@@ -1,0 +1,49 @@
+{
+  "paths": {
+    "input_root": "/path/to/msnet/raw_projects",
+    "prepared_root": "/path/to/rt_benchmark/prepared",
+    "benchmark_root": "/path/to/rt_benchmark/benchmark",
+    "scaling_root": "/path/to/rt_benchmark/scaling",
+    "autort_repo": "/path/to/AutoRT-master",
+    "deeplc_repo": "/path/to/DeepLC-master",
+    "gptime_repo": "/path/to/GPTime-master",
+    "autort_python": "/path/to/autort/python",
+    "deeplc_python": "/path/to/deeplc/python",
+    "gptime_python": "/path/to/gptime/python"
+  },
+  "input": {
+    "glob": "*/peptidoform_retention/*.parquet",
+    "sequence_columns": ["peptidoform", "sequence"],
+    "species_columns": ["species", "organism"],
+    "project_columns": ["project", "pxd", "PXD"],
+    "modification_columns": ["modifications", "modification"],
+    "retention_columns": ["retention", "rt", "retention_time"],
+    "effective_rt_columns": ["effective_rt", "run_scale", "gradient_length"]
+  },
+  "benchmark": {
+    "training_sizes": [1000, 5000, 10000, 15000, 20000, 25000, 50000, 75000, 100000],
+    "round_seeds": [20260813, 20260814, 20260815],
+    "test_size": 10000,
+    "first_character_groups": ["L", "A", "E", "S", "V"],
+    "species_groups": ["Homo_sapiens", "Mus_musculus", "Arabidopsis_thaliana", "Gallus_Gallus", "Danio_rerio"],
+    "excluded_species": ["unknown"],
+    "minimum_training_group_size": 10000,
+    "autort_steps": {"1000": 1000, "5000": 2500, "10000": 5000, "15000": 7500, "20000": 10000, "25000": 12500, "50000": 15000, "75000": 17500, "100000": 20000},
+    "deeplc_steps": {"1000": 1000, "5000": 2500, "10000": 5000, "15000": 7500, "20000": 10000, "25000": 12500, "50000": 15000, "75000": 17500, "100000": 20000},
+    "gptime_max_training_size": 25000,
+    "gptime_optimize_restarts": 1
+  },
+  "scaling": {
+    "training_sizes": [1000, 5000, 10000, 15000, 20000, 25000, 50000, 75000, 100000],
+    "species_groups": ["Homo_sapiens", "Mus_musculus", "Arabidopsis_thaliana", "Gallus_Gallus", "Danio_rerio"],
+    "seeds": {"AutoRT": 20260816, "DeepLC": 20260815},
+    "test_size": 1000,
+    "minimum_training_group_size": 10000,
+    "autort_schedule": {"1000": [1000, 20], "5000": [2500, 40], "10000": [5000, 50], "15000": [7500, 50], "20000": [10000, 50], "25000": [12500, 50], "50000": [15000, 50], "75000": [17500, 50], "100000": [20000, 50]},
+    "deeplc_schedule": {"1000": [2000, 20], "5000": [4000, 40], "10000": [5000, 50], "15000": [7500, 50], "20000": [10000, 50], "25000": [12500, 50], "50000": [15000, 50], "75000": [17500, 50], "100000": [20000, 50]},
+    "smoothing_start_step": 100,
+    "smoothing_base_window": 50,
+    "smoothing_step_fraction": 0.30,
+    "selection_tolerance": {"AutoRT": 0.10, "DeepLC": {"Homo_sapiens": 0.30, "Mus_musculus": 0.10, "Arabidopsis_thaliana": 0.10, "Gallus_Gallus": 0.10, "Danio_rerio": 0.30}}
+  }
+}
