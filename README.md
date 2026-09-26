@@ -1,4 +1,4 @@
-# π-MSNet: A billion-scale, AI-ready living proteomics data portal
+# π-MSNet: A large-scale, AI-ready, continuously reprocessed proteomics data portal
 
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
