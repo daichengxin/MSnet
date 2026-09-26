@@ -51,7 +51,7 @@ Notes:
       with the nine-species dataset without ricebean.
 ===============================================================================
 """
-
+import os
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.ticker import ScalarFormatter
@@ -60,6 +60,7 @@ from matplotlib.ticker import ScalarFormatter
 # =============================================================================
 # Configuration
 # =============================================================================
+
 
 OUTPUT_FIGURE_FILE = "msnet_diversity_three_panels.svg"
 FIGURE_SIZE = (16, 5.8)
@@ -90,20 +91,18 @@ TOP_MARGIN_RATIO = 1.10
 # The second value in each list corresponds to the nine-species dataset
 # without ricebean.
 DATA_GROUP_1 = {
-    "PSMs": [1967882, 1488508],
-    "Precursors": [1031514, 363770],
-    "Sequences": [876858, 290468],
+    "Precursors": [853521,363770],
+    "Sequences": [740430,290468],
 }
 
 DATA_GROUP_2 = {
-    "PTM sites": [595849, 417254],
-    "Modified sequences": [219455, 88726],
+    "PTM sites": [451233, 417254],
+    "Modified sequences": [186091, 88726],
 }
 
 DATA_GROUP_3 = {
-    "Species": [31, 8],
+    "Species": [29, 8],
 }
-
 
 # =============================================================================
 # Global plotting style

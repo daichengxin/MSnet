@@ -113,7 +113,16 @@ The reanalysis results of PXD025555 Homo sapiens Trypsin,PXD025555,π-MSNet,9620
 The reanalysis results of PXD005526 Mus musculus Trypsin,PXD005526,π-MSNet,13527205,Mus musculus,Eukaryote,395,Q Exactive,HCD@25.00,Trypsin,0,,64151449
 The reanalysis results of PXD021398 Homo sapiens HLA peptides,PXD021398,π-MSNet,4305190,Homo sapiens,Eukaryote,566,Q Exactive,HCD@25.00,unspecific cleavage,0,,
 The reanalysis results of PXD034656 Saccharomyces cerevisia Trypsin,PXD034656,π-MSNet,3264025,Saccharomyces cerevisia,Eukaryote,639,Q Exactive HF,HCD@30.00,Trypsin,0,,
-,,,,,,,,,,,,
-,,,,,,,,,,,,
-,,,,,,,,,,,,
-,PXD041268,,,,,,,,,,11322589,
+The reanalysis results of PXD041268,PXD041268,π-MSNet,11322589,Homo sapiens,Eukaryote,347,Orbitrap Eclipse,,Trypsin,,,11322589,,TMT
+The reanalysis results of PDC000219,PDC000219,π-MSNet,25716227,Homo sapiens,Eukaryote,1288,Orbitrap Fusion Lumos,,Trypsin,,,71320776,,TMT
+The reanalysis results of PXD046290,PXD046290,π-MSNet,1364149,,,12,Orbitrap Astral,,Trypsin,,,,DIA,
+The reanalysis results of PXD062529,PXD062529,π-MSNet,30248716,Homo sapiens,Eukaryote,3833,Q Exactive HF,,Trypsin,,,125740318,,TMT
+The reanalysis results of PDC000127,PDC000127,π-MSNet,7515500,Homo sapiens,Eukaryote,575,Orbitrap Fusion Lumos,,Trypsin,,,21613809,,TMT
+The reanalysis results of PDC000220,PDC000220,π-MSNet,1871613,Homo sapiens,Eukaryote,504,Orbitrap Fusion Lumos,,Trypsin,,,,,TMT
+The reanalysis results of PXD046320,PXD046320,π-MSNet,142938,,,6,Orbitrap Astral,,Trypsin,,,,DIA,
+The reanalysis results of PXD054415,PXD054415,π-MSNet,1407405,,,36,Orbitrap Fusion,,Trypsin,,,,DIA,
+The reanalysis results of PXD059114,PXD059114,π-MSNet,6807463,,,357,timsTOF,,Trypsin,,,21477216,,DDA
+The reanalysis results of IPX0010296000,IPX0010296000,π-MSNet,50587097,Homo sapiens,Eukaryote,515,Orbitrap Astral,,Trypsin,,,121392085,DIA,
+The reanalysis results of HuiYanMouse,HuiYanMouse,π-MSNet,33944576,Mus musculus,Eukaryote,466,Orbitrap Astral,,Trypsin,,,128496513,DIA,
+The reanalysis results of PXD054790,PXD054790,π-MSNet,64804704,Homo sapiens,Eukaryote,1201,Q Exactive HF,,Trypsin,,,88899828,DIA,
+The reanalysis results of PXD005252,PXD005252,π-MSNet,765297,Homo sapiens,Eukaryote,87,Q Exactive HF,,Trypsin,,,,,

@@ -3,9 +3,21 @@ A Python API for seamless integration of π-MSNet into AI workflows
 
 ## Install
 
+Python ≥ 3.10 is required. From a clone of the repository:
+
 ```bash
-pip install -e .
+git clone https://github.com/daichengxin/MSnet.git
+pip install -e MSNetLoader
 ```
+
+Or directly from GitHub, without cloning:
+
+```bash
+pip install "git+https://github.com/daichengxin/MSnet.git#subdirectory=MSNetLoader"
+```
+
+See the [project README](../README.md) for the dataset itself, the portal and
+Zenodo links, and the code reproducing the manuscript figures.
 
 ## Download a project dataset
 

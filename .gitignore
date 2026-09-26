@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# AI assistant rules
+.github/instructions/codacy.instructions.md
+
+# Large data files — available from Zenodo: https://zenodo.org/records/20792504
+manuscript/MS2/tests/
+manuscript/MS2/benchmark_tests.zip
+manuscript/MSNet-denovo/figure5/fig5c_precursors.csv

@@ -1,253 +1,438 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
+# !/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 """
 ===============================================================================
 Title:
-    Figure 5a - Performance comparison between π-HelixNovo-raw and
-    π-HelixNovo-MSNet
+    Figure 5a - Peptide recall comparison between π-HelixNovo-raw and
+    π-HelixNovo-MSNet across species
 
 Description:
-    This script generates Figure 5a for the manuscript. It compares the peptide
-    recall values of π-HelixNovo-raw and π-HelixNovo-MSNet across multiple
-    datasets, calculates the relative improvement percentage of
-    π-HelixNovo-MSNet over π-HelixNovo-raw, and visualizes the performance
-    comparison as a line chart.
+    This script generates Figure 5a for the manuscript. It compares the
+    peptide recall of π-HelixNovo-raw with that of π-HelixNovo-MSNet across
+    multiple species datasets.
 
-    The relative improvement is calculated as:
+    The π-HelixNovo-raw result is used as the baseline. The
+    π-HelixNovo-MSNet results are obtained from three independent training
+    runs. For each species, the mean peptide recall and sample standard
+    deviation across the three runs are calculated and displayed as the
+    point estimate and error bar, respectively.
 
-        (pep_recall_msnet - pep_recall_raw) / pep_recall_raw * 100
+    Peptide recall values are converted from proportions to percentages.
+    The relative improvement of π-HelixNovo-MSNet over π-HelixNovo-raw is
+    calculated as:
+
+        (MSNet mean - baseline) / baseline * 100
+
+    Positive and negative relative changes are annotated above the
+    corresponding π-HelixNovo-MSNet data points.
 
 Input:
-    - fig5a_summary_helixraw.csv:
-        Summary table containing peptide recall values for π-HelixNovo-raw.
-        Required columns:
-            - dataset
-            - pep_recall
+    - summary_helixraw.csv:
+        Peptide recall results for π-HelixNovo-raw.
 
-    - fig5a_summary_helixmsnet.csv:
-        Summary table containing peptide recall values for π-HelixNovo-MSNet.
-        Required columns:
-            - dataset
-            - pep_recall
+    - summary_helixmsnet_sampled.csv:
+        Peptide recall results from the first π-HelixNovo-MSNet run.
+
+    - summary_helixmsnet_sampled2.csv:
+        Peptide recall results from the second π-HelixNovo-MSNet run.
+
+    - summary_helixmsnet_sampled3.csv:
+        Peptide recall results from the third π-HelixNovo-MSNet run.
+
+    Each input CSV file must contain:
+        - dataset:
+            Species or dataset name.
+        - pep_recall:
+            Peptide recall represented as a proportion between 0 and 1.
 
 Output:
-    - performance_comparison_with_improvement.csv:
-        Merged performance comparison table with relative improvement values.
+    - compare_pep_recall_line.svg:
+        Publication-ready line plot showing peptide recall across species.
+        Error bars represent the sample standard deviation across three
+        independent π-HelixNovo-MSNet runs.
 
-    - performance_comparison_linechart_light.svg:
-        Publication-ready line chart for Figure 5a.
+    - summary_pep_recall_comparison.csv:
+        Numerical summary containing the baseline peptide recall, the mean
+        π-HelixNovo-MSNet peptide recall, the corresponding sample standard
+        deviation, and the relative improvement for each species.
 
 Author:
-    Tianze Ling, Ph.D. candidate @ Tsinghua University and 
+    Tianze Ling, Ph.D. candidate @ Tsinghua University and
     National Center for Protein Sciences (Beijing)
 
 Contact:
     tianzeling98@outlook.com
 
-License:
-    Copyright © 2026 [Your Name] / [Your Institution].
-    All rights reserved unless otherwise specified.
-
 Usage:
     python fig5a.py
 
+Dependencies:
+    - Python >= 3.6
+    - pandas
+    - NumPy
+    - Matplotlib
+
 Notes:
-    - The dataset "Haloarcula marismortui" is excluded from the comparison,
-      consistent with the manuscript figure preparation.
-    - Arial is used as the preferred sans-serif font for publication-style
-      plotting. If Arial is unavailable on the local system, matplotlib will
-      fall back to the default sans-serif font.
+    - "Haloarcula marismortui" is excluded from the analysis.
+    - Species are sorted alphabetically before plotting.
+    - Scientific names are displayed in italics on the x-axis.
+    - Error bars indicate mean ± sample standard deviation (s.d., n = 3).
+    - The sample standard deviation is calculated using one degree of
+      freedom (ddof = 1).
+    - Relative improvement is reported as undefined when the baseline value
+      is zero.
+    - Arial is used as the global font and must be installed on the system
+      for consistent figure rendering.
+    - SVG text is preserved as editable text when supported by the plotting
+      environment.
 ===============================================================================
 """
 
-import textwrap
+
+from pathlib import Path
+from typing import List
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
-from matplotlib.ticker import PercentFormatter
 
 
-# =============================================================================
-# Configuration
-# =============================================================================
-
-RAW_INPUT_FILE = "fig5a_summary_helixraw.csv"
-MSNET_INPUT_FILE = "fig5a_summary_helixmsnet.csv"
-
-OUTPUT_TABLE_FILE = "performance_comparison_with_improvement.csv"
-OUTPUT_FIGURE_FILE = "performance_comparison_linechart_light.svg"
-
-EXCLUDED_DATASET = "Haloarcula marismortui"
-DATASET_LABEL_WRAP_WIDTH = 18
-
-FIGURE_SIZE = (12, 6)
-FIGURE_DPI = 300
-
-RAW_MODEL_LABEL = "π-HelixNovo-raw"
-MSNET_MODEL_LABEL = "π-HelixNovo-MSNet"
-
-RAW_COLOR = "#82B0D2"      # Light blue
-MSNET_COLOR = "#FA7F6F"    # Light coral
-
-
-# =============================================================================
-# Plot style settings
-# =============================================================================
-
-plt.rcParams["font.family"] = "sans-serif"
-plt.rcParams["font.sans-serif"] = ["Arial"]
-plt.rcParams["axes.unicode_minus"] = False
-
-
-# =============================================================================
-# Data loading and processing
-# =============================================================================
-
-# Load model performance summaries.
-df_raw = pd.read_csv(RAW_INPUT_FILE)
-df_msnet = pd.read_csv(MSNET_INPUT_FILE)
-
-# Merge peptide recall values from the two models by dataset.
-performance_df = pd.merge(
-    df_raw[["dataset", "pep_recall"]],
-    df_msnet[["dataset", "pep_recall"]],
-    on="dataset",
-    suffixes=("_raw", "_msnet")
+# ==============================
+# 1. Global plotting configuration
+# ==============================
+plt.rcParams.update(
+    {
+        "font.family": "Arial",
+        "font.size": 17,
+        "figure.dpi": 150,
+        "axes.titlesize": 18,
+        "axes.labelsize": 15,
+        "xtick.labelsize": 13,
+        "ytick.labelsize": 13,
+        "legend.fontsize": 15,
+        # Preserve editable text when exporting SVG files.
+        "svg.fonttype": "none",
+    }
 )
 
-# Exclude the specified dataset from the figure.
-performance_df = performance_df[
-    performance_df["dataset"] != EXCLUDED_DATASET
+
+# ==============================
+# 2. Input and output configuration
+# ==============================
+DATA_DIR = Path("./")
+
+BASELINE_FILE = "summary_helixraw.csv"
+
+MSNET_FILES = [
+    "summary_helixmsnet_sampled1.csv",
+    "summary_helixmsnet_sampled2.csv",
+    "summary_helixmsnet_sampled3.csv",
 ]
 
-# Sort datasets alphabetically and wrap long dataset names for better readability.
-performance_df = performance_df.sort_values(by="dataset").reset_index(drop=True)
-performance_df["dataset_wrapped"] = performance_df["dataset"].apply(
-    lambda dataset_name: textwrap.fill(dataset_name, width=DATASET_LABEL_WRAP_WIDTH)
-)
+METRIC = "pep_recall"
 
-# Calculate the relative improvement percentage:
-#     (MSNet - raw) / raw * 100
-performance_df["relative_imp_pct"] = (
-    (
-        performance_df["pep_recall_msnet"] -
-        performance_df["pep_recall_raw"]
-    ) / performance_df["pep_recall_raw"]
-) * 100
+# Species excluded from the analysis.
+EXCLUDE_SPECIES = [
+    "Haloarcula marismortui",
+]
+
+FIGURE_FILE = "compare_pep_recall_line.svg"
+SUMMARY_FILE = "summary_pep_recall_comparison.csv"
 
 
-# =============================================================================
-# Report and export processed data
-# =============================================================================
+# ==============================
+# 3. Data-loading functions
+# ==============================
+def load_result_table(file_path: Path, metric: str) -> pd.DataFrame:
+    """
+    Load a result table and set the dataset column as the index.
 
-print("Relative performance improvement by dataset "
-      "(π-HelixNovo-MSNet vs π-HelixNovo-raw):")
-print("-" * 72)
+    Parameters
+    ----------
+    file_path : pathlib.Path
+        Path to the input CSV file.
+    metric : str
+        Name of the metric column required for the analysis.
 
-for _, row in performance_df.iterrows():
-    print(f"{row['dataset']:<45} {row['relative_imp_pct']:>6.2f}%")
+    Returns
+    -------
+    pandas.DataFrame
+        Loaded result table indexed by dataset name.
 
-print("-" * 72)
+    Raises
+    ------
+    FileNotFoundError
+        If the input file does not exist.
+    ValueError
+        If required columns are missing or dataset names are duplicated.
+    """
+    if not file_path.is_file():
+        raise FileNotFoundError(f"Input file not found: {file_path}")
 
-# Save the merged comparison table with relative improvement values.
-performance_df.to_csv(OUTPUT_TABLE_FILE, index=False)
+    df = pd.read_csv(file_path)
 
+    if "dataset" not in df.columns:
+        raise ValueError(
+            f"Required column 'dataset' is missing from: {file_path}"
+        )
 
-# =============================================================================
-# Plot Figure 5a
-# =============================================================================
+    if metric not in df.columns:
+        raise ValueError(
+            f"Required metric column '{metric}' is missing from: {file_path}"
+        )
 
-fig, ax = plt.subplots(figsize=FIGURE_SIZE)
+    if df["dataset"].duplicated().any():
+        duplicated_datasets = (
+            df.loc[df["dataset"].duplicated(), "dataset"]
+            .astype(str)
+            .tolist()
+        )
+        raise ValueError(
+            f"Duplicated dataset names in {file_path}: "
+            f"{duplicated_datasets}"
+        )
 
-x_positions = range(len(performance_df))
-y_raw = performance_df["pep_recall_raw"] * 100
-y_msnet = performance_df["pep_recall_msnet"] * 100
-
-# Plot π-HelixNovo-raw performance.
-ax.plot(
-    x_positions,
-    y_raw,
-    marker="o",
-    linestyle="-",
-    color=RAW_COLOR,
-    linewidth=2,
-    markersize=8,
-    label=RAW_MODEL_LABEL
-)
-
-# Plot π-HelixNovo-MSNet performance.
-ax.plot(
-    x_positions,
-    y_msnet,
-    marker="s",
-    linestyle="-",
-    color=MSNET_COLOR,
-    linewidth=2,
-    markersize=8,
-    label=MSNET_MODEL_LABEL
-)
+    return df.set_index("dataset")
 
 
-# =============================================================================
-# Add point labels
-# =============================================================================
+def validate_dataset_consistency(
+    baseline_df: pd.DataFrame,
+    msnet_dfs: List[pd.DataFrame],
+) -> None:
+    """
+    Verify that all MSNet result tables contain the baseline datasets.
 
-for i in x_positions:
-    # Label for π-HelixNovo-raw, placed below each point.
-    ax.annotate(
-        f"{y_raw[i]:.1f}%",
-        (i, y_raw[i]),
-        textcoords="offset points",
-        xytext=(0, -18),
-        ha="center",
-        va="top",
-        fontsize=10,
-        color=RAW_COLOR,
-        weight="bold"
+    Parameters
+    ----------
+    baseline_df : pandas.DataFrame
+        Baseline result table.
+    msnet_dfs : list of pandas.DataFrame
+        Result tables from independent MSNet runs.
+
+    Raises
+    ------
+    ValueError
+        If an MSNet result table is missing one or more baseline datasets.
+    """
+    baseline_datasets = set(baseline_df.index)
+
+    for run_index, df in enumerate(msnet_dfs, start=1):
+        missing_datasets = sorted(baseline_datasets - set(df.index))
+
+        if missing_datasets:
+            raise ValueError(
+                f"MSNet run {run_index} is missing the following datasets: "
+                f"{missing_datasets}"
+            )
+
+
+
+# ==============================
+# 4. Main analysis and plotting
+# ==============================
+def main() -> None:
+    """Run the peptide-recall comparison analysis."""
+
+    # Create the output directory if it does not already exist.
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Load the baseline result table.
+    baseline_path = DATA_DIR / BASELINE_FILE
+    df_baseline = load_result_table(baseline_path, METRIC)
+
+    # Load results from the three independent MSNet runs.
+    msnet_dfs = [
+        load_result_table(DATA_DIR / file_name, METRIC)
+        for file_name in MSNET_FILES
+    ]
+
+    # Remove species excluded from the analysis.
+    df_baseline = df_baseline.drop(
+        index=EXCLUDE_SPECIES,
+        errors="ignore",
+    )
+    msnet_dfs = [
+        df.drop(index=EXCLUDE_SPECIES, errors="ignore")
+        for df in msnet_dfs
+    ]
+
+    if df_baseline.empty:
+        raise ValueError(
+            "No datasets remain after applying the exclusion criteria."
+        )
+
+    # Verify that every MSNet table contains all baseline datasets.
+    validate_dataset_consistency(df_baseline, msnet_dfs)
+
+    # Sort species alphabetically and use the same order for all tables.
+    species_list = sorted(df_baseline.index.astype(str).tolist())
+
+    df_baseline = df_baseline.loc[species_list]
+    msnet_dfs = [
+        df.loc[species_list]
+        for df in msnet_dfs
+    ]
+
+    # Convert the selected metric to numeric values.
+    baseline_values = pd.to_numeric(
+        df_baseline[METRIC],
+        errors="raise",
+    ).to_numpy(dtype=float)
+
+    msnet_stack = np.stack(
+        [
+            pd.to_numeric(df[METRIC], errors="raise").to_numpy(dtype=float)
+            for df in msnet_dfs
+        ],
+        axis=0,
     )
 
-    # Label for π-HelixNovo-MSNet, placed above each point.
-    ax.annotate(
-        f"{y_msnet[i]:.1f}%",
-        (i, y_msnet[i]),
-        textcoords="offset points",
-        xytext=(0, 12),
-        ha="center",
-        va="bottom",
-        fontsize=10,
-        color=MSNET_COLOR,
-        weight="bold"
+    # Calculate the mean and sample standard deviation across MSNet runs.
+    msnet_mean = msnet_stack.mean(axis=0)
+    msnet_std = msnet_stack.std(axis=0, ddof=1)
+
+    # Convert recall values from proportions to percentages.
+    baseline_pct = baseline_values * 100.0
+    msnet_pct = msnet_mean * 100.0
+    msnet_err_pct = msnet_std * 100.0
+
+    # Calculate relative improvement over the baseline.
+    # Undefined values are reported as NaN when the baseline is zero.
+    relative_improvement = np.divide(
+        msnet_pct - baseline_pct,
+        baseline_pct,
+        out=np.full_like(msnet_pct, np.nan, dtype=float),
+        where=baseline_pct != 0,
+    ) * 100.0
+
+    # ==============================
+    # 5. Generate the line plot
+    # ==============================
+    fig, ax = plt.subplots(figsize=(16, 7))
+
+    x_positions = np.arange(len(species_list))
+
+    ax.plot(
+        x_positions,
+        baseline_pct,
+        marker="o",
+        markersize=8,
+        linewidth=2.2,
+        color="#4A6FA5",
+        label="π-HelixNovo-raw",
     )
 
+    ax.errorbar(
+        x_positions,
+        msnet_pct,
+        yerr=msnet_err_pct,
+        marker="s",
+        markersize=8,
+        linewidth=2.2,
+        capsize=8,
+        capthick=2.2,
+        elinewidth=2.2,
+        color="#E07A5F",
+        label="π-HelixNovo-MSNet (mean ± s.d., n = 3)",
+    )
 
-# =============================================================================
-# Format axes and figure appearance
-# =============================================================================
+    # Annotate the relative improvement above each MSNet data point.
+    for index, improvement in enumerate(relative_improvement):
+        if np.isnan(improvement):
+            annotation = "NA"
+            annotation_color = "#666666"
+        else:
+            sign = "+" if improvement >= 0 else ""
+            annotation = f"{sign}{improvement:.1f}%"
+            annotation_color = (
+                "black" if improvement >= 0 else "#D62828"
+            )
 
-ax.set_xticks(x_positions)
-ax.set_xticklabels(
-    performance_df["dataset_wrapped"],
-    rotation=45,
-    ha="right",
-    fontsize=12
-)
+        ax.annotate(
+            annotation,
+            (
+                x_positions[index],
+                msnet_pct[index] + msnet_err_pct[index],
+            ),
+            textcoords="offset points",
+            xytext=(0, 10),
+            ha="center",
+            va="bottom",
+            fontsize=13,
+            color=annotation_color,
+            fontweight="bold",
+        )
 
-ax.set_ylabel("Peptide precision", fontsize=14, weight="bold")
-ax.yaxis.set_major_formatter(PercentFormatter(decimals=0))
+    ax.set_xlabel("Datasets")
+    ax.set_ylabel("Peptide recall (%)")
 
-ax.legend(
-    fontsize=15,
-    loc="upper left",
-    bbox_to_anchor=(0, 1.1)
-)
+    ax.set_xticks(x_positions)
+    ax.set_xticklabels(
+        species_list,
+        rotation=22,
+        ha="right",
+        fontstyle="italic",
+    )
 
-# Add a light horizontal dashed grid to improve readability.
-ax.grid(axis="y", linestyle="--", alpha=0.4)
+    ax.legend(
+        loc="upper right",
+        bbox_to_anchor=(1.0, 1.20),
+        frameon=False,
+    )
 
-# Remove unnecessary spines for a cleaner publication-style figure.
-ax.spines["top"].set_visible(False)
-ax.spines["right"].set_visible(False)
+    # Remove the top and right axis spines.
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
 
-plt.tight_layout()
-plt.savefig(OUTPUT_FIGURE_FILE, dpi=FIGURE_DPI)
-plt.show()
+    # Add sufficient vertical space for annotations and error bars.
+    y_max = max(
+        float(np.nanmax(baseline_pct)),
+        float(np.nanmax(msnet_pct + msnet_err_pct)),
+    )
+    ax.set_ylim(0, y_max * 1.25)
+
+    fig.tight_layout()
+
+    figure_path = DATA_DIR / FIGURE_FILE
+    fig.savefig(
+        figure_path,
+        bbox_inches="tight",
+        dpi=300,
+    )
+
+    plt.show()
+    plt.close(fig)
+
+    # ==============================
+    # 6. Export the numerical summary
+    # ==============================
+    summary = pd.DataFrame(
+        {
+            "baseline_pep_recall(%)": baseline_pct,
+            "msnet_mean_pep_recall(%)": msnet_pct,
+            "msnet_std(%)": msnet_err_pct,
+            "relative_improvement(%)": relative_improvement,
+        },
+        index=species_list,
+    )
+
+    summary.index.name = "dataset"
+    summary = summary.round(1)
+
+    summary_path = DATA_DIR / SUMMARY_FILE
+    summary.to_csv(summary_path, index=True)
+
+    print("\n=== Peptide recall comparison summary ===")
+    print(summary.to_string())
+
+    print("\nOutput files:")
+    print(f"Figure: {figure_path}")
+    print(f"Summary: {summary_path}")
+
+
+if __name__ == "__main__":
+    main()
