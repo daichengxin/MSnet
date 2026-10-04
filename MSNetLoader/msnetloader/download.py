@@ -52,35 +52,40 @@ PORTAL_BASE = "https://portal.quantms.org"
 DEFAULT_METADATA_MAX_AGE = 24 * 3600
 
 #: Files shipped for every project in the quantms/msnet collection.
-#: ``filename`` may contain the ``{accession}`` placeholder.
+#: ``filename`` may contain the ``{accession}`` placeholder; ``suffix`` is used
+#: to resolve the file from a directory listing when the template name is not
+#: present (variant folders may keep the plain accession name for metadata
+#: files, e.g. ``PXD004452-GluC`` ships ``PXD004452.dataset.parquet``).
 FILE_SPECS = {
     "msnet": {
         "filename": "{accession}-MSNet.parquet",
+        "suffix": "-MSNet.parquet",
         "description": "main PSM data used by msnetloader datasets (can be tens of GB)",
     },
     "dataset": {
         "filename": "{accession}.dataset.parquet",
+        "suffix": ".dataset.parquet",
         "description": "dataset metadata",
     },
     "ontology": {
         "filename": "{accession}.ontology.parquet",
+        "suffix": ".ontology.parquet",
         "description": "ontology annotations",
     },
     "provenance": {
         "filename": "{accession}.provenance.parquet",
+        "suffix": ".provenance.parquet",
         "description": "provenance metadata",
     },
     "run": {
         "filename": "{accession}.run.parquet",
+        "suffix": ".run.parquet",
         "description": "MS run metadata",
     },
     "sample": {
         "filename": "{accession}.sample.parquet",
+        "suffix": ".sample.parquet",
         "description": "sample metadata",
-    },
-    "provenance_json": {
-        "filename": "provenance.json",
-        "description": "provenance information as JSON",
     },
 }
 
@@ -317,7 +322,7 @@ def download_dataset(
         Local destination directory. Defaults to ``<cwd>/data/<accession>``.
     files:
         Which files to download: ``"all"`` or a subset of
-        ``["msnet", "dataset", "ontology", "provenance", "run", "sample", "provenance_json"]``.
+        ``["msnet", "dataset", "ontology", "provenance", "run", "sample"]``.
     source:
         ``"ftp"`` (default, official EBI mirror) or ``"browse"`` (browse.quantms.org).
         Ignored when *accession* is a full URL.
@@ -347,6 +352,7 @@ def download_dataset(
         raise ValueError(f"Unknown file type(s) {sorted(unknown)}; choose from {sorted(FILE_SPECS)}")
 
     accession, parsed_base_url = _resolve_input(accession)
+    user_supplied_url = base_url is not None
     if base_url is None:
         base_url = parsed_base_url
     resolved_base = _resolve_base_url(accession, source, base_url, timeout, max_retries)
@@ -355,17 +361,54 @@ def download_dataset(
         data_dir = Path.cwd() / "data" / accession
     data_dir = Path(data_dir)
 
+    # When the base URL was derived from an accession, the remote listing is
+    # authoritative: variant folders may name their metadata files after the
+    # plain accession (e.g. PXD004452-GluC ships PXD004452.dataset.parquet).
+    listing: Optional[list[str]] = None
+    if not user_supplied_url:
+        try:
+            listing = _list_directory(resolved_base, timeout, max_retries)
+        except Exception:
+            listing = None
+
     results: list[Path] = []
-    for key in sorted(selected):
-        filename = FILE_SPECS[key]["filename"].format(accession=accession)
-        url = f"{resolved_base}/{filename}"
-        dest = data_dir / filename
-        results.append(
-            _download_one(
-                url, dest, force=force, resume=resume, progress=progress,
-                chunk_size=chunk_size, timeout=timeout, max_retries=max_retries,
+    try:
+        for key in sorted(selected):
+            filename = FILE_SPECS[key]["filename"].format(accession=accession)
+            if listing is not None and filename not in listing:
+                suffix = FILE_SPECS[key]["suffix"]
+                matches = [name for name in listing if name.endswith(suffix)]
+                if len(matches) == 1:
+                    filename = matches[0]
+            url = f"{resolved_base}/{filename}"
+            dest = data_dir / filename
+            results.append(
+                _download_one(
+                    url, dest, force=force, resume=resume, progress=progress,
+                    chunk_size=chunk_size, timeout=timeout, max_retries=max_retries,
+                )
             )
-        )
+    except urllib.error.HTTPError as error:
+        # A plain accession can name several per-species/-enzyme folders
+        # (e.g. PXD014877) that have no common parent on the FTP mirror.
+        if error.code != 404 or user_supplied_url or source != "ftp":
+            raise
+        try:
+            folders = _list_collection_folders(timeout, max_retries)
+        except Exception:
+            raise error from None
+        if accession in folders:
+            # The dataset folder exists; the requested file is genuinely absent.
+            raise
+        splits = sorted(f for f in folders if f.startswith(accession + "-"))
+        if not splits:
+            raise
+        shown = ", ".join(splits[:8]) + ("..." if len(splits) > 8 else "")
+        raise FileNotFoundError(
+            f"'{accession}' is not a single dataset on the quantms FTP mirror; "
+            f"it is split into {len(splits)} folder(s): {shown}. "
+            f"Download one of these names, e.g. download_dataset({splits[0]!r}, ...)"
+        ) from error
     return results
 
 

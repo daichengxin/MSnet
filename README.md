@@ -3,7 +3,7 @@
 [![PyPI](https://img.shields.io/pypi/v/msnetloader)](https://pypi.org/project/msnetloader/)
 [![Python versions](https://img.shields.io/pypi/pyversions/msnetloader)](https://pypi.org/project/msnetloader/)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
-[![Data: Zenodo](https://img.shields.io/badge/data-Zenodo-blue)](https://zenodo.org/records/20792504)
+[![Data: Zenodo](https://img.shields.io/badge/data-Zenodo-blue)](https://zenodo.org/records/22975527)
 
 ![π-MSNet Logo](assets/Figure1.png)
 

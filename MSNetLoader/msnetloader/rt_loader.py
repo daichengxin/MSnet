@@ -2,6 +2,8 @@ import duckdb
 import numpy as np
 from torch.utils.data import IterableDataset
 
+from msnetloader.utils import detect_parquet_schema
+
 
 class RTIterableDataset(IterableDataset):
 
@@ -32,10 +34,12 @@ class RTIterableDataset(IterableDataset):
         if conditions:
             where_clause = "WHERE " + " AND ".join(conditions)
 
+        rt_col = "rt" if detect_parquet_schema(parquet_path) == "current" else "retention_time"
+
         query = f"""
         SELECT
             peptidoform,
-            retention_time,
+            {rt_col} AS retention_time,
             consensus_support,
             posterior_error_probability
         FROM parquet_scan(?)

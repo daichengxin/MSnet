@@ -5,6 +5,8 @@ import numpy as np
 import torch
 from torch.utils.data import IterableDataset
 
+from msnetloader.utils import detect_parquet_schema
+
 
 class MS2TorchDataset(IterableDataset):
 
@@ -36,8 +38,31 @@ class MS2TorchDataset(IterableDataset):
         if conditions:
             where_clause = "WHERE " + " AND ".join(conditions)
 
-        query = f"""
-        SELECT
+        schema = detect_parquet_schema(parquet_path)
+        if schema == "current":
+            columns_sql = """
+            sequence,
+            peptidoform,
+            charge,
+            COALESCE(
+                list_extract(list_filter(cv_params, x -> x.cv_name = 'instrument'), 1)['cv_value'],
+                'unknown'
+            ) AS instrument,
+            COALESCE(
+                CAST(
+                    list_extract(
+                        list_filter(cv_params, x -> x.cv_name = 'normalized collision energy'), 1
+                    )['cv_value']
+                    AS DOUBLE
+                ),
+                0.0
+            ) AS nce,
+            ion_type_array,
+            charge_array,
+            intensity_array
+            """
+        else:
+            columns_sql = """
             sequence,
             peptidoform,
             precursor_charge AS charge,
@@ -46,6 +71,10 @@ class MS2TorchDataset(IterableDataset):
             ion_type_array,
             charge_array,
             intensity_array
+            """
+
+        query = f"""
+        SELECT {columns_sql}
         FROM parquet_scan(?)
         {where_clause}
         ORDER BY length(sequence)
