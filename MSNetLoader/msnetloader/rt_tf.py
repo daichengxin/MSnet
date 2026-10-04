@@ -2,6 +2,8 @@ import duckdb
 import numpy as np
 import tensorflow as tf
 
+from msnetloader.utils import detect_parquet_schema
+
 
 class RTTFDataset:
 
@@ -31,10 +33,12 @@ class RTTFDataset:
         if conditions:
             where_clause = "WHERE " + " AND ".join(conditions)
 
+        rt_col = "rt" if detect_parquet_schema(parquet_path) == "current" else "retention_time"
+
         query = f"""
                 SELECT
                     peptidoform,
-                    retention_time,
+                    {rt_col} AS retention_time,
                     consensus_support,
                     posterior_error_probability
                 FROM parquet_scan(?)

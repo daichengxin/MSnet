@@ -2,6 +2,8 @@ import duckdb
 import numpy as np
 import tensorflow as tf
 
+from msnetloader.utils import detect_parquet_schema
+
 
 class DeNovoTFDataset:
 
@@ -28,11 +30,15 @@ class DeNovoTFDataset:
         if conditions:
             where_clause = "WHERE " + " AND ".join(conditions)
 
+        schema = detect_parquet_schema(parquet_path)
+        mz_col = "observed_mz" if schema == "current" else "exp_mass_to_charge"
+        charge_col = "charge" if schema == "current" else "precursor_charge"
+
         query = f"""
                  SELECT
                      peptidoform,
-                     exp_mass_to_charge AS precursor_mz,
-                     precursor_charge AS charge,
+                     {mz_col} AS precursor_mz,
+                     {charge_col} AS charge,
                      mz_array,
                      consensus_support,
                      posterior_error_probability,
@@ -92,8 +98,6 @@ class DeNovoTFDataset:
         mz_list = batch["mz_array"].to_pylist()
         int_list = batch["intensity_array"].to_pylist()
         precursor_mz = batch["precursor_mz"].to_pylist()
-        consensus_supports = batch["consensus_support"].to_pylist()
-        peps = batch["posterior_error_probability"].to_pylist()
 
         spectra_out = []
         seq_out = []
@@ -101,12 +105,6 @@ class DeNovoTFDataset:
         precursor_out = []
 
         for i in range(len(peptidoform)):
-
-            if not self.filter_by_consensus_support(consensus_supports[i]):
-                continue
-
-            if not self.filter_by_pep(peps[i]):
-                continue
 
             mz = np.asarray(mz_list[i], dtype=np.float32)
             intensity = np.asarray(int_list[i], dtype=np.float32)

@@ -78,10 +78,6 @@ FILE_SPECS = {
         "filename": "{accession}.sample.parquet",
         "description": "sample metadata",
     },
-    "provenance_json": {
-        "filename": "provenance.json",
-        "description": "provenance information as JSON",
-    },
 }
 
 _ACCESSION_RE = re.compile(r"(?:^|/)(PXD\d+|PDC\d+|IPX\d+|RPXD\d+)(?:/|$)")
@@ -317,7 +313,7 @@ def download_dataset(
         Local destination directory. Defaults to ``<cwd>/data/<accession>``.
     files:
         Which files to download: ``"all"`` or a subset of
-        ``["msnet", "dataset", "ontology", "provenance", "run", "sample", "provenance_json"]``.
+        ``["msnet", "dataset", "ontology", "provenance", "run", "sample"]``.
     source:
         ``"ftp"`` (default, official EBI mirror) or ``"browse"`` (browse.quantms.org).
         Ignored when *accession* is a full URL.
@@ -347,6 +343,7 @@ def download_dataset(
         raise ValueError(f"Unknown file type(s) {sorted(unknown)}; choose from {sorted(FILE_SPECS)}")
 
     accession, parsed_base_url = _resolve_input(accession)
+    user_supplied_url = base_url is not None
     if base_url is None:
         base_url = parsed_base_url
     resolved_base = _resolve_base_url(accession, source, base_url, timeout, max_retries)
@@ -356,16 +353,35 @@ def download_dataset(
     data_dir = Path(data_dir)
 
     results: list[Path] = []
-    for key in sorted(selected):
-        filename = FILE_SPECS[key]["filename"].format(accession=accession)
-        url = f"{resolved_base}/{filename}"
-        dest = data_dir / filename
-        results.append(
-            _download_one(
-                url, dest, force=force, resume=resume, progress=progress,
-                chunk_size=chunk_size, timeout=timeout, max_retries=max_retries,
+    try:
+        for key in sorted(selected):
+            filename = FILE_SPECS[key]["filename"].format(accession=accession)
+            url = f"{resolved_base}/{filename}"
+            dest = data_dir / filename
+            results.append(
+                _download_one(
+                    url, dest, force=force, resume=resume, progress=progress,
+                    chunk_size=chunk_size, timeout=timeout, max_retries=max_retries,
+                )
             )
-        )
+    except urllib.error.HTTPError as error:
+        # A plain accession can name several per-species/-enzyme folders
+        # (e.g. PXD014877) that have no common parent on the FTP mirror.
+        if error.code != 404 or user_supplied_url:
+            raise
+        try:
+            folders = _list_collection_folders(timeout, max_retries)
+        except Exception:
+            raise error from None
+        splits = sorted(f for f in folders if f == accession or f.startswith(accession + "-"))
+        if not splits:
+            raise
+        shown = ", ".join(splits[:8]) + ("..." if len(splits) > 8 else "")
+        raise FileNotFoundError(
+            f"'{accession}' is not a single dataset on the quantms FTP mirror; "
+            f"it is split into {len(splits)} folder(s): {shown}. "
+            f"Download one of these names, e.g. download_dataset({splits[0]!r}, ...)"
+        ) from error
     return results
 
 

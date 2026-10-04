@@ -1,3 +1,47 @@
+import os
+
+import duckdb
+
+
+def detect_parquet_schema(parquet_paths) -> str:
+    """Return ``"legacy"`` or ``"current"`` for the MSNet parquet column layout.
+
+    The quantms/msnet collection was re-processed with a new layout
+    (``charge``, ``observed_mz``, ``calculated_mz``, ``rt``,
+    ``run_file_name`` and a ``(cv_name, cv_value)[]`` ``cv_params`` array);
+    files generated before the re-processing use ``precursor_charge``,
+    ``exp_mass_to_charge``, ``retention_time``, ``reference_file_name`` and a
+    named-struct ``cv_params``. Only the first input file is inspected, so all
+    files of one dataset must share a layout.
+
+    Parameters
+    ----------
+    parquet_paths:
+        One or more ``*-MSNet.parquet`` files.
+
+    Returns
+    -------
+    str
+        ``"legacy"`` or ``"current"``.
+    """
+    if isinstance(parquet_paths, (str, os.PathLike)):
+        first = str(parquet_paths)
+    else:
+        first = str(next(iter(parquet_paths)))
+    con = duckdb.connect()
+    columns = [
+        row[0] for row in con.execute("DESCRIBE SELECT * FROM parquet_scan(?)", [first]).fetchall()
+    ]
+    if "precursor_charge" in columns:
+        return "legacy"
+    if "charge" in columns:
+        return "current"
+    raise ValueError(
+        f"Unrecognised MSNet parquet layout in {first}: "
+        f"expected a 'precursor_charge' or 'charge' column, found {columns}"
+    )
+
+
 def dereduant_precursor(cursor, key="peptidoform"):
     """De-duplicate the rows of an open duckdb cursor on *key*.
 

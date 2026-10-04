@@ -88,7 +88,6 @@ def remote_server(tmp_path):
         "PXD999999.provenance.parquet": b"provenance-metadata",
         "PXD999999.run.parquet": b"run-metadata",
         "PXD999999.sample.parquet": b"sample-metadata",
-        "provenance.json": b'{"project": "PXD999999"}',
     }
     for name, content in files.items():
         (nested / name).write_bytes(content)
@@ -133,11 +132,11 @@ def test_download_selected_files(remote_server, tmp_path):
 def test_download_from_full_url(remote_server, tmp_path):
     """A full dataset URL must be accepted and used as the base URL."""
     paths = download_dataset(
-        remote_server["base"] + "/", data_dir=tmp_path, files=["provenance_json"], progress=False
+        remote_server["base"] + "/", data_dir=tmp_path, files=["sample"], progress=False
     )
 
-    assert paths[0].name == "provenance.json"
-    assert paths[0].read_bytes() == remote_server["files"]["provenance.json"]
+    assert paths[0].name == "PXD999999.sample.parquet"
+    assert paths[0].read_bytes() == remote_server["files"]["PXD999999.sample.parquet"]
 
 
 def test_download_skips_existing(remote_server, tmp_path):
@@ -197,6 +196,12 @@ def test_unknown_file_type_raises(remote_server, tmp_path):
         download_dataset(ACCESSIONS, data_dir=tmp_path, files=["nonsense"], base_url=remote_server["base"])
 
 
+def test_removed_provenance_json_type_raises(tmp_path):
+    """provenance.json is no longer shipped in the collection."""
+    with pytest.raises(ValueError, match="Unknown file type"):
+        download_dataset(ACCESSIONS, data_dir=tmp_path, files=["provenance_json"], base_url="http://127.0.0.1")
+
+
 def test_unknown_source_raises(tmp_path):
     with pytest.raises(ValueError):
         download_dataset(ACCESSIONS, data_dir=tmp_path, files=["dataset"], source="s3")
@@ -212,3 +217,13 @@ def test_download_from_quantms_ftp(tmp_path):
     assert len(paths) == 1
     assert paths[0].stat().st_size > 0
     assert paths[0].read_bytes()[:4] == b"PAR1"
+
+
+@pytest.mark.skipif(
+    not os.environ.get("MSNETLOADER_LIVE_TESTS"),
+    reason="live network test; set MSNETLOADER_LIVE_TESTS=1 to run",
+)
+def test_split_project_404_lists_variants(tmp_path):
+    """A species-split project must name its variant folders, not the plain accession."""
+    with pytest.raises(FileNotFoundError, match="PXD014877.*split into"):
+        download_dataset("PXD014877", data_dir=tmp_path, files=["dataset"], progress=False)

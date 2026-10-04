@@ -55,6 +55,11 @@ download_dataset(
 Interrupted downloads are resumed automatically from the `*.part` file;
 pass `force=True` to re-download existing files.
 
+Some projects are split into per-species or per-enzyme folders without a
+common parent — for example `PXD014877` lives in 37 folders such as
+`PXD014877-Mus-Musculus` — so download them by their full folder name (a
+plain accession download raises a helpful error listing the splits).
+
 ### Select datasets by experimental metadata
 
 Choose which projects to download by their experimental properties (enzyme,
@@ -124,7 +129,7 @@ split_dataset("PXD021013-MSNet.parquet", output_dir="splits", test_size=0.1, see
 peptides = split_peptides("PXD021013-MSNet.parquet", test_size=0.1, seed=42)
 
 # coarse file-level split across multiple projects
-split_files(["PXD021013-MSNet.parquet", "PXD014877-MSNet.parquet"], test_size=0.2, seed=42)
+split_files(["PXD021013-MSNet.parquet", "PXD014877-Mus-Musculus-MSNet.parquet"], test_size=0.2, seed=42)
 ```
 
 ## Load datasets

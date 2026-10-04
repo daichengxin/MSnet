@@ -3,6 +3,8 @@ import numpy as np
 import torch
 from torch.utils.data import IterableDataset
 
+from msnetloader.utils import detect_parquet_schema
+
 
 class DeNovoIterableDataset(IterableDataset):
 
@@ -33,11 +35,15 @@ class DeNovoIterableDataset(IterableDataset):
         if conditions:
             where_clause = "WHERE " + " AND ".join(conditions)
 
+        schema = detect_parquet_schema(parquet_path)
+        mz_col = "observed_mz" if schema == "current" else "exp_mass_to_charge"
+        charge_col = "charge" if schema == "current" else "precursor_charge"
+
         query = f"""
                 SELECT
                     peptidoform,
-                    exp_mass_to_charge AS precursor_mz,
-                    precursor_charge AS charge,
+                    {mz_col} AS precursor_mz,
+                    {charge_col} AS charge,
                     mz_array,
                     consensus_support,
                     posterior_error_probability,
