@@ -144,10 +144,10 @@ class MS2TFDataset:
         )
 
         return {
-            "peptide": np.array(peptidoform, dtype=np.string_),
+            "peptide": np.array(peptidoform, dtype=np.bytes_),
             "charge": np.array(charges, dtype=np.int32),
             "nce": np.array(nces, dtype=np.float32),
-            "instruments": np.array(instruments, dtype=np.string_),
+            "instruments": np.array(instruments, dtype=np.bytes_),
             "targets": targets.numpy(),  # TF expects numpy
         }
 

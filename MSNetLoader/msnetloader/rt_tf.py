@@ -80,7 +80,7 @@ class RTTFDataset:
         pep = batch["posterior_error_probability"].to_pylist()
 
         # ✅ 转 numpy
-        peptidoform = np.array(peptidoform, dtype=np.string_)
+        peptidoform = np.array(peptidoform, dtype=np.bytes_)
         retention_time = np.array(retention_time, dtype=np.float32)
         consensus_support = np.array(consensus_support)
         pep = np.array(pep)

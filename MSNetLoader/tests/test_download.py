@@ -108,6 +108,33 @@ def remote_server(tmp_path):
         thread.join(timeout=5)
 
 
+@pytest.fixture
+def variant_server(tmp_path):
+    """Local HTTP server mimicking a variant folder with plain-named metadata files."""
+    root = tmp_path / "remote_variant"
+    folder = root / "PXD999999-GluC"
+    folder.mkdir(parents=True)
+
+    files = {
+        "PXD999999-GluC-MSNet.parquet": b"x" * 1024,
+        "PXD999999.dataset.parquet": b"PAR1" + b"dataset" * 10,
+        "PXD999999.sample.parquet": b"sample-metadata",
+    }
+    for name, content in files.items():
+        (folder / name).write_bytes(content)
+
+    handler = functools.partial(_RangeHandler, directory=str(root))
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield {"url": f"http://127.0.0.1:{server.server_port}"}
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
 def test_download_all_files(remote_server, tmp_path):
     paths = download_dataset(
         ACCESSIONS, data_dir=tmp_path, files="all", base_url=remote_server["base"], progress=False
@@ -202,6 +229,18 @@ def test_removed_provenance_json_type_raises(tmp_path):
         download_dataset(ACCESSIONS, data_dir=tmp_path, files=["provenance_json"], base_url="http://127.0.0.1")
 
 
+def test_variant_folder_metadata_fallback(variant_server, tmp_path, monkeypatch):
+    """Metadata files in a variant folder may keep the plain accession name."""
+    monkeypatch.setattr(download_mod, "DEFAULT_FTP_BASE", variant_server["url"])
+
+    paths = download_dataset(
+        "PXD999999-GluC", data_dir=tmp_path, files=["dataset", "sample"], progress=False
+    )
+
+    assert sorted(p.name for p in paths) == ["PXD999999.dataset.parquet", "PXD999999.sample.parquet"]
+    assert (tmp_path / "PXD999999.dataset.parquet").read_bytes().startswith(b"PAR1")
+
+
 def test_unknown_source_raises(tmp_path):
     with pytest.raises(ValueError):
         download_dataset(ACCESSIONS, data_dir=tmp_path, files=["dataset"], source="s3")
@@ -227,3 +266,18 @@ def test_split_project_404_lists_variants(tmp_path):
     """A species-split project must name its variant folders, not the plain accession."""
     with pytest.raises(FileNotFoundError, match="PXD014877.*split into"):
         download_dataset("PXD014877", data_dir=tmp_path, files=["dataset"], progress=False)
+
+
+@pytest.mark.skipif(
+    not os.environ.get("MSNETLOADER_LIVE_TESTS"),
+    reason="live network test; set MSNETLOADER_LIVE_TESTS=1 to run",
+)
+def test_variant_folder_plain_metadata_live(tmp_path):
+    """PXD004452-GluC ships its metadata files under the plain accession name."""
+    paths = download_dataset(
+        "PXD004452-GluC", data_dir=tmp_path, files=["dataset", "run", "sample"], progress=False
+    )
+
+    names = sorted(p.name for p in paths)
+    assert "PXD004452.dataset.parquet" in names
+    assert all(p.stat().st_size > 0 for p in paths)
