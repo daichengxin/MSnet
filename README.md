@@ -209,7 +209,7 @@ The analysis code lives under [`manuscript/`](manuscript/). Large inputs and tra
 If you use π-MSNet in your research, please cite:
 
 Dai, C. et al. π-MSNet: A billion-scale, AI-ready living proteomics data portal. bioRxiv, 2026.2004.2013.718149 (2026).
-[Link](https://www.biorxiv.org/content/10.64898/2026.04.13.718149v1)
+[Link](https://www.biorxiv.org/content/10.64898/2026.04.13.718149)
 
 ## License
 
